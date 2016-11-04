@@ -204,6 +204,7 @@ public:
       {%- endfor -%}
         ) = 0;
         virtual void sendFailure(const DispatchResponse&) = 0;
+        virtual ~{{command.name | to_title_case}}Callback() { }
     };
     {% endif %}
     {%- if not("async" in command) %}
