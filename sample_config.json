@@ -5,7 +5,23 @@
         "output": "place/generated/files/here",
         "namespace": ["sample_project", "protocol"],
         "export_macro": "LIB_EXPORT",
-        "export_header": "lib/lib_export.h"
+        "export_header": "lib/lib_export.h",
+        "options": [
+            {
+                "domain": "Domain1",
+                "include": ["command1", "command2"],
+                "async": ["command1"]
+            },
+            {
+                "domain": "Domain2",
+                "exclude": ["command3", "command4"],
+                "exclude_events": ["event1"],
+                "async": ["command10"]
+            },
+            {
+                "domain": "Domain3"
+            }
+        ],
     },
 
     "exported": {
