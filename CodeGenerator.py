@@ -287,7 +287,6 @@ def wrap_array_definition(type):
         "raw_type": "protocol::Array<%s>" % type["raw_type"],
         "raw_pass_type": "protocol::Array<%s>*" % type["raw_type"],
         "raw_return_type": "protocol::Array<%s>*" % type["raw_type"],
-        "create_type": "wrapUnique(new protocol::Array<%s>())" % type["raw_type"],
         "out_type": "protocol::Array<%s>&" % type["raw_type"],
     }
 
