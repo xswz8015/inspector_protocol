@@ -200,6 +200,7 @@ def calculate_imports_and_exports(config, protocol):
         if not has_exports(domain_json, clear):
             continue
         if domain in exported_domains:
+            domain_json["has_exports"] = True
             protocol.exported_domains.append(domain)
         if domain in imported_domains:
             protocol.imported_domains.append(domain)
