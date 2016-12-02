@@ -88,6 +88,7 @@ def read_config():
             ".imported.export_header": False,
             ".imported.header": False,
             ".imported.package": False,
+            ".imported.options": False,
             ".protocol.export_macro": "",
             ".protocol.export_header": False,
             ".protocol.options": False,
@@ -170,41 +171,6 @@ def patch_full_qualified_refs(protocol):
 
     for domain in protocol.json_api["domains"]:
         patch_full_qualified_refs_in_domain(domain, domain["domain"])
-
-
-def calculate_imports_and_exports(config, protocol):
-    def has_exports(json_value, clear):
-        result = False
-        if isinstance(json_value, list):
-            for item in json_value:
-                result = has_exports(item, clear) or result
-        if isinstance(json_value, dict):
-            if "exported" in json_value and json_value["exported"]:
-                result = True
-            if "exported" in json_value and clear:
-                del json_value["exported"]
-            for key in json_value:
-                result = has_exports(json_value[key], clear) or result
-        return result
-
-    imported_domains = protocol.imported_domains
-    if config.protocol.options:
-        protocol.generate_domains = [rule.domain for rule in config.protocol.options]
-        imported_domains = list(set(protocol.imported_domains) - set(protocol.generate_domains))
-    exported_domains = protocol.generate_domains
-
-    protocol.imported_domains = []
-    protocol.exported_domains = []
-    for domain_json in protocol.json_api["domains"]:
-        domain = domain_json["domain"]
-        clear = domain not in exported_domains and domain not in imported_domains
-        if not has_exports(domain_json, clear):
-            continue
-        if domain in exported_domains:
-            domain_json["has_exports"] = True
-            protocol.exported_domains.append(domain)
-        if domain in imported_domains:
-            protocol.imported_domains.append(domain)
 
 
 def create_imported_type_definition(domain_name, type, imported_namespace):
@@ -375,44 +341,52 @@ def join_arrays(dict, keys):
     return result
 
 
+def check_options(options, domain, name, include_attr, exclude_attr, default):
+    for rule in options:
+        if rule.domain != domain:
+            continue
+        if include_attr and hasattr(rule, include_attr):
+            return name in getattr(rule, include_attr)
+        if exclude_attr and hasattr(rule, exclude_attr):
+            return name not in getattr(rule, exclude_attr)
+        return default
+    return False
+
+
 def generate_command(protocol, config, domain, command):
     if not config.protocol.options:
         return domain in protocol.generate_domains
-    for rule in config.protocol.options:
-        if rule.domain != domain:
-            continue
-        if hasattr(rule, "include"):
-            return command in rule.include
-        if hasattr(rule, "exclude"):
-            return command not in rule.exclude
-        return True
-    return False
+    return check_options(config.protocol.options, domain, command, "include", "exclude", True)
 
 
 def generate_event(protocol, config, domain, event):
     if not config.protocol.options:
         return domain in protocol.generate_domains
-    for rule in config.protocol.options:
-        if rule.domain != domain:
-            continue
-        if hasattr(rule, "include_events"):
-            return event in rule.include_events
-        if hasattr(rule, "exclude_events"):
-            return event not in rule.exclude_events
-        return True
-    return False
+    return check_options(config.protocol.options, domain, event, "include_events", "exclude_events", True)
 
 
 def is_async_command(protocol, config, domain, command):
     if not config.protocol.options:
         return False
-    for rule in config.protocol.options:
-        if rule.domain != domain:
-            continue
-        if hasattr(rule, "async"):
-            return command in rule.async
+    return check_options(config.protocol.options, domain, command, "async", None, False)
+
+
+def is_exported(protocol, config, domain, name):
+    if not config.protocol.options:
         return False
-    return False
+    return check_options(config.protocol.options, domain, name, "exported", None, False)
+
+
+def is_imported(protocol, config, domain, name):
+    if not config.imported:
+        return False
+    if not config.imported.options:
+        return domain in protocol.imported_domains
+    return check_options(config.imported.options, domain, name, "imported", None, False)
+
+
+def is_exported_domain(protocol, config, domain):
+    return domain in protocol.exported_domains
 
 
 def generate_disable(protocol, config, domain):
@@ -467,9 +441,14 @@ def main():
     protocol = Protocol()
     protocol.json_api = {"domains": []}
     protocol.generate_domains = read_protocol_file(config.protocol.path, protocol.json_api)
-    protocol.imported_domains = read_protocol_file(config.imported.path, protocol.json_api) if config.imported else []
+    if config.protocol.options:
+        protocol.generate_domains = [rule.domain for rule in config.protocol.options]
+        protocol.exported_domains = [rule.domain for rule in config.protocol.options if hasattr(rule, "exported")]
+    if config.imported:
+        protocol.imported_domains = read_protocol_file(config.imported.path, protocol.json_api)
+        if config.imported.options:
+            protocol.imported_domains = [rule.domain for rule in config.imported.options]
     patch_full_qualified_refs(protocol)
-    calculate_imports_and_exports(config, protocol)
 
     for domain in protocol.json_api["domains"]:
         if "events" in domain:
@@ -526,6 +505,9 @@ def main():
             "generate_command": functools.partial(generate_command, protocol, config),
             "generate_event": functools.partial(generate_event, protocol, config),
             "is_async_command": functools.partial(is_async_command, protocol, config),
+            "is_exported": functools.partial(is_exported, protocol, config),
+            "is_exported_domain": functools.partial(is_exported_domain, protocol, config),
+            "is_imported": functools.partial(is_imported, protocol, config),
             "generate_disable": functools.partial(generate_disable, protocol, config),
             "format_include": functools.partial(format_include, config),
         }

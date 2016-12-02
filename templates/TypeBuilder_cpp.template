@@ -26,7 +26,7 @@ namespace {{type.id}}Enum {
 const char* {{ literal | dash_to_camelcase}} = "{{literal}}";
       {% endfor %}
 } // namespace {{type.id}}Enum
-      {% if type.exported %}
+      {% if is_exported(domain.domain, type.id) %}
 
 namespace API {
 namespace {{type.id}}Enum {
@@ -94,7 +94,7 @@ std::unique_ptr<{{type.id}}> {{type.id}}::clone() const
     ErrorSupport errors;
     return fromValue(toValue().get(), &errors);
 }
-    {% if type.exported %}
+    {% if is_exported(domain.domain, type.id) %}
 
 {{config.exported.string_out}} {{type.id}}::toJSONString() const
 {
@@ -127,7 +127,7 @@ const char* {{ literal | to_title_case}} = "{{literal}}";
         {% endfor %}
 } // namespace {{param.name | to_title_case}}Enum
 } // namespace {{command.name | to_title_case }}
-        {% if param.exported %}
+        {% if is_exported(domain.domain, command.name + "." + param.name) %}
 
 namespace API {
 namespace {{command.name | to_title_case}} {
