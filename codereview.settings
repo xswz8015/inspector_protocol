@@ -1,8 +1,6 @@
-# This file is used by gcl to get repository specific information.
-CODE_REVIEW_SERVER: codereview.chromium.org
+# This file is used by git-cl to get repository specific information.
 CC_LIST: chromium-reviews@chromium.org
-VIEW_VC: https://chromium.googlesource.com/deps/inspector_protocol
-# TODO: add preload if needed
-# GITCL_PREUPLOAD: http://src.chromium.org/viewvc/trunk/tools/depot_tools/git-cl-upload-hook?revision=HEAD&root=chrome
-# GITCL_PREDCOMMIT: http://src.chromium.org/viewvc/trunk/tools/depot_tools/git-cl-upload-hook?revision=HEAD&root=chrome
+CODE_REVIEW_SERVER: codereview.chromium.org
+GERRIT_HOST: True
 PROJECT: inspector_protocol
+VIEW_VC: https://chromium.googlesource.com/deps/inspector_protocol/+/
