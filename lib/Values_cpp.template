@@ -378,9 +378,18 @@ protocol::Value* ListValue::at(size_t index)
     return m_data[index].get();
 }
 
-void escapeStringForJSON(const String& str, StringBuilder* dst)
+void escapeLatinStringForJSON(const unsigned char* str, unsigned len, StringBuilder* dst)
 {
-    for (unsigned i = 0; i < str.length(); ++i) {
+    for (unsigned i = 0; i < len; ++i) {
+        char c = str[i];
+        if (!escapeChar(c, dst))
+            StringUtil::builderAppend(*dst, c);
+    }
+}
+
+void escapeWideStringForJSON(const uint16_t* str, unsigned len, StringBuilder* dst)
+{
+    for (unsigned i = 0; i < len; ++i) {
         uint16_t c = str[i];
         if (!escapeChar(c, dst)) {
             if (c < 32 || c > 126 || c == '<' || c == '>') {
