@@ -42,6 +42,22 @@ void appendUnsignedAsHex(uint16_t number, StringBuilder* dst)
     }
 }
 
+template <typename Char>
+void escapeStringForJSONInternal(const Char* str, unsigned len,
+                                 StringBuilder* dst)
+{
+    for (unsigned i = 0; i < len; ++i) {
+        Char c = str[i];
+        if (escapeChar(c, dst))
+            continue;
+        if (c < 32 || c > 126) {
+            appendUnsignedAsHex(c, dst);
+        } else {
+            StringUtil::builderAppend(*dst, c);
+        }
+    }
+}
+
 } // anonymous namespace
 
 bool Value::asBoolean(bool*) const
@@ -378,30 +394,14 @@ protocol::Value* ListValue::at(size_t index)
     return m_data[index].get();
 }
 
-void escapeLatinStringForJSON(const unsigned char* str, unsigned len, StringBuilder* dst)
+void escapeLatinStringForJSON(const uint8_t* str, unsigned len, StringBuilder* dst)
 {
-    for (unsigned i = 0; i < len; ++i) {
-        char c = str[i];
-        if (!escapeChar(c, dst))
-            StringUtil::builderAppend(*dst, c);
-    }
+    escapeStringForJSONInternal<uint8_t>(str, len, dst);
 }
 
 void escapeWideStringForJSON(const uint16_t* str, unsigned len, StringBuilder* dst)
 {
-    for (unsigned i = 0; i < len; ++i) {
-        uint16_t c = str[i];
-        if (!escapeChar(c, dst)) {
-            if (c < 32 || c > 126 || c == '<' || c == '>') {
-                // 1. Escaping <, > to prevent script execution.
-                // 2. Technically, we could also pass through c > 126 as UTF8, but this
-                //    is also optional. It would also be a pain to implement here.
-                appendUnsignedAsHex(c, dst);
-            } else {
-                StringUtil::builderAppend(*dst, c);
-            }
-        }
-    }
+    escapeStringForJSONInternal<uint16_t>(str, len, dst);
 }
 
 {% for namespace in config.protocol.namespace %}
