@@ -24,7 +24,7 @@ const char Metainfo::version[] = "{{domain.version}}";
 
 namespace {{type.id}}Enum {
       {% for literal in type.enum %}
-const char* {{ literal | dash_to_camelcase}} = "{{literal}}";
+const char {{ literal | dash_to_camelcase}}[] = "{{literal}}";
       {% endfor %}
 } // namespace {{type.id}}Enum
       {% if protocol.is_exported(domain.domain, type.id) %}
