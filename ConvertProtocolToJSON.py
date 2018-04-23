@@ -2,8 +2,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import code_generator
+import convert_to_protocol_json
 
 
 def main():
-  code_generator.main()
+  convert_protocol_to_json.main()
