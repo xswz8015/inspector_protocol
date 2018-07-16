@@ -604,7 +604,6 @@ def main():
         # Note these should be sorted in the right order.
         # TODO(dgozman): sort them programmatically based on commented includes.
         lib_h_templates = [
-            "Collections_h.template",
             "ErrorSupport_h.template",
             "Values_h.template",
             "Object_h.template",
