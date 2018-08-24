@@ -76,7 +76,7 @@ std::unique_ptr<{{type.id}}> {{type.id}}::fromValue(protocol::Value* value, Erro
     return result;
 }
 
-std::unique_ptr<protocol::DictionaryValue> {{type.id}}::toValue() const
+std::unique_ptr<protocol::DictionaryValue> {{type.id}}::createValue() const
 {
     std::unique_ptr<protocol::DictionaryValue> result = DictionaryValue::create();
     {% for property in type.properties %}
@@ -92,10 +92,15 @@ std::unique_ptr<protocol::DictionaryValue> {{type.id}}::toValue() const
     return result;
 }
 
+std::unique_ptr<protocol::DictionaryValue> {{type.id}}::toValue()
+{
+    return createValue();
+}
+
 std::unique_ptr<{{type.id}}> {{type.id}}::clone() const
 {
     ErrorSupport errors;
-    return fromValue(toValue().get(), &errors);
+    return fromValue(createValue().get(), &errors);
 }
     {% if protocol.is_exported(domain.domain, type.id) %}
 

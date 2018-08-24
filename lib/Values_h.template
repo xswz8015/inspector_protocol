@@ -16,10 +16,10 @@ class ListValue;
 class DictionaryValue;
 class Value;
 
-class {{config.lib.export_macro}} Value : public Serializable {
+class {{config.lib.export_macro}} Value {
     PROTOCOL_DISALLOW_COPY(Value);
 public:
-    virtual ~Value() override { }
+    virtual ~Value() = default;
 
     static std::unique_ptr<Value> null()
     {
@@ -49,7 +49,8 @@ public:
 
     virtual void writeJSON(StringBuilder* output) const;
     virtual std::unique_ptr<Value> clone() const;
-    String serialize() override;
+
+    String serialize() const;
 
 protected:
     Value() : m_type(TypeNull) { }
@@ -236,6 +237,14 @@ public:
 private:
     ListValue();
     std::vector<std::unique_ptr<Value>> m_data;
+};
+
+// We can't serialize generated types to Value early - it needs to be deferred
+// in order to not skew performance instrumentation.
+class {{config.lib.export_macro}} SerializableToValue {
+public:
+    virtual std::unique_ptr<DictionaryValue> toValue() = 0;
+    virtual ~SerializableToValue() = default;
 };
 
 void escapeLatinStringForJSON(const uint8_t* str, unsigned len, StringBuilder* dst);
