@@ -26,7 +26,6 @@ def assignType(item, type, isArray=False):
         item['type'] = type
     else:
         item['$ref'] = type
-        item['type'] = '$ref'
 
 
 def createItem(d, experimental, deprecated, name=None):
