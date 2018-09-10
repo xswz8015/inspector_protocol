@@ -36,7 +36,7 @@ void appendUnsignedAsHex(uint16_t number, StringBuilder* dst)
 {
     StringUtil::builderAppend(*dst, "\\u");
     for (size_t i = 0; i < 4; ++i) {
-        uint8_t c = hexDigits[(number & 0xF000) >> 12];
+        uint16_t c = hexDigits[(number & 0xF000) >> 12];
         StringUtil::builderAppend(*dst, c);
         number <<= 4;
     }
@@ -53,7 +53,7 @@ void escapeStringForJSONInternal(const Char* str, unsigned len,
         if (c < 32 || c > 126) {
             appendUnsignedAsHex(c, dst);
         } else {
-            StringUtil::builderAppend(*dst, static_cast<uint8_t>(c));
+            StringUtil::builderAppend(*dst, c);
         }
     }
 }
@@ -96,7 +96,7 @@ std::unique_ptr<Value> Value::clone() const
     return Value::null();
 }
 
-String Value::serialize() const
+String Value::serialize()
 {
     StringBuilder result;
     StringUtil::builderReserve(result, 512);
@@ -146,9 +146,9 @@ void FundamentalValue::writeJSON(StringBuilder* output) const
             StringUtil::builderAppend(*output, nullValueString, 4);
             return;
         }
-        StringUtil::builderAppendDouble(*output, m_doubleValue);
+        StringUtil::builderAppend(*output, StringUtil::fromDouble(m_doubleValue));
     } else if (type() == TypeInteger) {
-        StringUtil::builderAppendInteger(*output, m_integerValue);
+        StringUtil::builderAppend(*output, StringUtil::fromInteger(m_integerValue));
     }
 }
 

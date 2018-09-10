@@ -9,24 +9,6 @@
 namespace {{namespace}} {
 {% endfor %}
 
-namespace {
-
-class DictionarySerializer : public protocol::SerializableToValue {
-public:
-    explicit DictionarySerializer(std::unique_ptr<protocol::DictionaryValue> dictionary)
-        : dictionary_(std::move(dictionary)) {}
-
-    std::unique_ptr<DictionaryValue> toValue() override {
-      return std::move(dictionary_);
-    }
-    ~DictionarySerializer() override {}
-
-private:
-    std::unique_ptr<protocol::DictionaryValue> dictionary_;
-};
-
-};  // namespace
-
 // static
 DispatchResponse DispatchResponse::OK()
 {
@@ -131,7 +113,7 @@ void DispatcherBase::sendResponse(int callId, const DispatchResponse& response, 
         reportProtocolError(callId, response.errorCode(), response.errorMessage(), nullptr);
         return;
     }
-    m_frontendChannel->sendProtocolResponse(callId, InternalResponse::createResponse(callId, std::make_unique<DictionarySerializer>(std::move(result))));
+    m_frontendChannel->sendProtocolResponse(callId, InternalResponse::createResponse(callId, std::move(result)));
 }
 
 void DispatcherBase::sendResponse(int callId, const DispatchResponse& response)
@@ -305,13 +287,13 @@ void UberDispatcher::dispatch(int callId, const String& method, std::unique_ptr<
 UberDispatcher::~UberDispatcher() = default;
 
 // static
-std::unique_ptr<InternalResponse> InternalResponse::createResponse(int callId, std::unique_ptr<SerializableToValue> params)
+std::unique_ptr<InternalResponse> InternalResponse::createResponse(int callId, std::unique_ptr<Serializable> params)
 {
     return std::unique_ptr<InternalResponse>(new InternalResponse(callId, String(), std::move(params)));
 }
 
 // static
-std::unique_ptr<InternalResponse> InternalResponse::createNotification(const String& notification, std::unique_ptr<SerializableToValue> params)
+std::unique_ptr<InternalResponse> InternalResponse::createNotification(const String& notification, std::unique_ptr<Serializable> params)
 {
     return std::unique_ptr<InternalResponse>(new InternalResponse(0, notification, std::move(params)));
 }
@@ -319,23 +301,22 @@ std::unique_ptr<InternalResponse> InternalResponse::createNotification(const Str
 String InternalResponse::serialize()
 {
     std::unique_ptr<DictionaryValue> result = DictionaryValue::create();
+    std::unique_ptr<Serializable> params(m_params ? std::move(m_params) : DictionaryValue::create());
     if (m_notification.length()) {
         result->setString("method", m_notification);
-        result->setValue("params", m_params->toValue());
+        result->setValue("params", SerializedValue::create(params->serialize()));
     } else {
         result->setInteger("id", m_callId);
-        result->setValue("result", m_params->toValue());
+        result->setValue("result", SerializedValue::create(params->serialize()));
     }
     return result->serialize();
 }
 
-InternalResponse::InternalResponse(int callId, const String& notification, std::unique_ptr<SerializableToValue> params)
+InternalResponse::InternalResponse(int callId, const String& notification, std::unique_ptr<Serializable> params)
     : m_callId(callId)
     , m_notification(notification)
-    , m_params(std::move(params))
+    , m_params(params ? std::move(params) : nullptr)
 {
-  if (!m_params)
-    m_params = std::make_unique<DictionarySerializer>(DictionaryValue::create());
 }
 
 {% for namespace in config.protocol.namespace %}
