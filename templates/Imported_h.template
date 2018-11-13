@@ -22,7 +22,7 @@ namespace {{namespace}} {
 
 template<>
 struct ValueConversions<{{"::".join(config.imported.namespace)}}::{{domain.domain}}::API::{{type.id}}> {
-    static std::unique_ptr<{{"::".join(config.imported.namespace)}}::{{domain.domain}}::API::{{type.id}}> fromValue(protocol::Value* value, ErrorSupport* errors)
+    static std::unique_ptr<{{"::".join(config.imported.namespace)}}::{{domain.domain}}::API::{{type.id}}> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
     {
         if (!value) {
             errors->addError("value expected");
@@ -35,15 +35,10 @@ struct ValueConversions<{{"::".join(config.imported.namespace)}}::{{domain.domai
         return result;
     }
 
-    static std::unique_ptr<protocol::Value> toValue(const {{"::".join(config.imported.namespace)}}::{{domain.domain}}::API::{{type.id}}* value)
+    static std::unique_ptr<protocol::Value> toValue(std::unique_ptr<{{"::".join(config.imported.namespace)}}::{{domain.domain}}::API::{{type.id}}> value)
     {
         auto json = value->toJSONString();
         return SerializedValue::create({{config.imported.from_imported_string % "std::move(json)"}});
-    }
-
-    static std::unique_ptr<protocol::Value> toValue(const std::unique_ptr<{{"::".join(config.imported.namespace)}}::{{domain.domain}}::API::{{type.id}}>& value)
-    {
-        return toValue(value.get());
     }
 };
   {% endfor %}

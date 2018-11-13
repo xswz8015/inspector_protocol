@@ -15,12 +15,12 @@ namespace {{namespace}} {
 
 class {{config.lib.export_macro}} Object {
 public:
-    static std::unique_ptr<Object> fromValue(protocol::Value*, ErrorSupport*);
+    static std::unique_ptr<Object> fromValue(std::unique_ptr<protocol::Value>, ErrorSupport*);
     explicit Object(std::unique_ptr<protocol::DictionaryValue>);
     ~Object();
 
-    std::unique_ptr<protocol::DictionaryValue> toValue() const;
-    std::unique_ptr<Object> clone() const;
+    std::unique_ptr<protocol::DictionaryValue> takeValue();
+
 private:
     std::unique_ptr<protocol::DictionaryValue> m_object;
 };

@@ -80,6 +80,11 @@ bool Value::asString(String*) const
     return false;
 }
 
+bool Value::takeString(String*)
+{
+    return false;
+}
+
 bool Value::asSerialized(String*) const
 {
     return false;
@@ -170,6 +175,12 @@ bool StringValue::asString(String* output) const
     return true;
 }
 
+bool StringValue::takeString(String* output)
+{
+    *output = std::move(m_stringValue);
+    return true;
+}
+
 void StringValue::writeJSON(StringBuilder* output) const
 {
     DCHECK(type() == TypeString);
@@ -224,17 +235,17 @@ void DictionaryValue::setString(const String& name, const String& value)
 
 void DictionaryValue::setValue(const String& name, std::unique_ptr<Value> value)
 {
-    set(name, value);
+    set(name, std::move(value));
 }
 
 void DictionaryValue::setObject(const String& name, std::unique_ptr<DictionaryValue> value)
 {
-    set(name, value);
+    set(name, std::move(value));
 }
 
 void DictionaryValue::setArray(const String& name, std::unique_ptr<ListValue> value)
 {
-    set(name, value);
+    set(name, std::move(value));
 }
 
 bool DictionaryValue::getBoolean(const String& name, bool* output) const
@@ -285,6 +296,14 @@ protocol::Value* DictionaryValue::get(const String& name) const
     if (it == m_data.end())
         return nullptr;
     return it->second.get();
+}
+
+std::unique_ptr<protocol::Value> DictionaryValue::take(const String& name)
+{
+    Dictionary::iterator it = m_data.find(name);
+    if (it == m_data.end())
+        return nullptr;
+    return std::move(it->second);
 }
 
 DictionaryValue::Entry DictionaryValue::at(size_t index) const
@@ -392,6 +411,12 @@ protocol::Value* ListValue::at(size_t index)
 {
     DCHECK_LT(index, m_data.size());
     return m_data[index].get();
+}
+
+std::unique_ptr<protocol::Value> ListValue::take(size_t index)
+{
+    DCHECK_LT(index, m_data.size());
+    return std::move(m_data[index]);
 }
 
 void escapeLatinStringForJSON(const uint8_t* str, unsigned len, StringBuilder* dst)
