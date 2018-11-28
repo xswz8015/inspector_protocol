@@ -22,6 +22,7 @@ and have the depot_tools installed, you may use these commands
 to fetch the package (and dependencies) and build and run the tests:
 
     fetch inspector_protocol
+    cd src
     gn gen out/Release
-    ninja -C out/Release encoding_test
-    out/Release/encoding_test
+    ninja -C out/Release json_parser_test
+    out/Release/json_parser_test

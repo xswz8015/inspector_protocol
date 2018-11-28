@@ -5,25 +5,6 @@
 # All build targets below are experimental and not used within the
 # Chromium / V8 / etc. trees yet thus far. Do not depend on anything.
 
-static_library("encoding") {
-  sources = [
-    "encoding/encoding.cc",
-    "encoding/encoding.h",
-  ]
-}
-
-test("encoding_test") {
-  sources = [
-    "encoding/encoding_test.cc",
-  ]
-  deps = [
-    ":encoding",
-    "//testing:gtest_main",
-    "//third_party/gtest:gmock",
-    "//third_party/gtest:gtest",
-  ]
-}
-
 static_library("json_parser") {
   sources = [
     "encoding/json_parser.cc",
