@@ -24,3 +24,40 @@ test("json_parser_test") {
     "//third_party/mini_chromium/mini_chromium/base",
   ]
 }
+
+static_library("binary_encoding") {
+  sources = [
+    "encoding/binary_encoding.cc",
+    "encoding/binary_encoding.h",
+    "encoding/span.h",
+  ]
+  deps = [
+    ":json_parser",
+  ]
+}
+
+test("binary_encoding_test") {
+  sources = [
+    "encoding/binary_encoding_test.cc",
+  ]
+  deps = [
+    ":binary_encoding",
+    "//testing:gtest_main",
+    "//third_party/gtest:gmock",
+    "//third_party/gtest:gtest",
+    "//third_party/mini_chromium/mini_chromium/base",
+  ]
+}
+
+test("span_test") {
+  sources = [
+    "encoding/span.h",
+    "encoding/span_test.cc",
+  ]
+  deps = [
+    "//testing:gtest_main",
+    "//third_party/gtest:gmock",
+    "//third_party/gtest:gtest",
+    "//third_party/mini_chromium/mini_chromium/base",
+  ]
+}
