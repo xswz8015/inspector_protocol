@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "span.h"
 
 namespace inspector_protocol {
 // Client code must provide an instance. Implementation should delegate
@@ -40,10 +41,10 @@ class JsonHandler {
 };
 
 // JSON parsing routines.
-void parseJSONCharacters(const SystemDeps* deps, const uint8_t* data,
-                         size_t length, JsonHandler* handler);
-void parseJSONCharacters(const SystemDeps* deps, const uint16_t* data,
-                         size_t length, JsonHandler* handler);
+void parseJSONChars(const SystemDeps* deps, span<uint8_t> chars,
+                    JsonHandler* handler);
+void parseJSONChars(const SystemDeps* deps, span<uint16_t> chars,
+                    JsonHandler* handler);
 }  // namespace inspector_protocol
 
 #endif  // INSPECTOR_PROTOCOL_ENCODING_JSON_PARSER_H_

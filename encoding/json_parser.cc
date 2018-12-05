@@ -509,15 +509,15 @@ class JsonParser {
 };
 }  // namespace
 
-void parseJSONCharacters(const SystemDeps* deps, const uint8_t* characters,
-                         size_t length, JsonHandler* handler) {
+void parseJSONChars(const SystemDeps* deps, span<uint8_t> chars,
+                    JsonHandler* handler) {
   JsonParser<uint8_t> parser(deps, handler);
-  parser.Parse(characters, length);
+  parser.Parse(chars.data(), chars.size());
 }
 
-void parseJSONCharacters(const SystemDeps* deps, const uint16_t* characters,
-                         size_t length, JsonHandler* handler) {
+void parseJSONChars(const SystemDeps* deps, span<uint16_t> chars,
+                    JsonHandler* handler) {
   JsonParser<uint16_t> parser(deps, handler);
-  parser.Parse(characters, length);
+  parser.Parse(chars.data(), chars.size());
 }
 }  // namespace inspector_protocol
