@@ -9,6 +9,7 @@ static_library("json_parser") {
   sources = [
     "encoding/json_parser.cc",
     "encoding/json_parser.h",
+    "encoding/json_parser_handler.h",
     "encoding/span.h",
   ]
 }

@@ -21,7 +21,7 @@ class LinuxDeps : public SystemDeps {
   }
 };
 
-class Log : public JsonHandler {
+class Log : public JsonParserHandler {
  public:
   void HandleObjectBegin() override { log_ << "object begin\n"; }
   void HandleObjectEnd() override { log_ << "object end\n"; }
