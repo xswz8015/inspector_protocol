@@ -15,6 +15,7 @@ namespace inspector_protocol {
 // to whatever is appropriate.
 class SystemDeps {
  public:
+  virtual ~SystemDeps() = default;
   // Parses |str| into |result|. Returns false iff there are
   // leftover characters or parsing errors.
   virtual bool StrToD(const char* str, double* result) const = 0;
