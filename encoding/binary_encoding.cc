@@ -6,10 +6,11 @@
 
 #include <cassert>
 #include <limits>
+#include "json_parser_handler.h"
 
 namespace inspector_protocol {
 namespace {
-// The major types from section 2.1.
+// The major types from RFC 7049 Section 2.1.
 enum class MajorType {
   UNSIGNED = 0,
   NEGATIVE = 1,
@@ -42,10 +43,31 @@ static constexpr uint8_t kAdditionalInformation8Bytes = 27u;
 
 // Encodes the initial byte, consisting of the |type| in the first 3 bits
 // followed by 5 bits of |additional_info|.
-uint8_t EncodeInitialByte(MajorType type, uint8_t additional_info) {
-  return (static_cast<uint8_t>(type) << kMajorTypeBitShift) |
+constexpr uint8_t EncodeInitialByte(MajorType type, uint8_t additional_info) {
+  return (uint8_t(type) << kMajorTypeBitShift) |
          (additional_info & kAdditionalInformationMask);
 }
+
+// See RFC 7049 Section 2.3, Table 2.
+static constexpr uint8_t kEncodedTrue =
+    EncodeInitialByte(MajorType::SIMPLE_VALUE, 21);
+static constexpr uint8_t kEncodedFalse =
+    EncodeInitialByte(MajorType::SIMPLE_VALUE, 20);
+static constexpr uint8_t kEncodedNull =
+    EncodeInitialByte(MajorType::SIMPLE_VALUE, 22);
+static constexpr uint8_t kInitialByteForDouble =
+    EncodeInitialByte(MajorType::SIMPLE_VALUE, 27);
+
+// See RFC 7049 Section 2.2.1, indefinite length arrays / maps have additional
+// info = 31.
+static constexpr uint8_t kInitialByteIndefiniteLengthArray =
+    EncodeInitialByte(MajorType::ARRAY, 31);
+static constexpr uint8_t kInitialByteIndefiniteLengthMap =
+    EncodeInitialByte(MajorType::MAP, 31);
+// See RFC 7049 Section 2.3, Table 1; this is used for finishing indefinite
+// length maps / arrays.
+static constexpr uint8_t kStopByte =
+    EncodeInitialByte(MajorType::SIMPLE_VALUE, 31);
 
 // Writes the bytes for |v| to |out|, starting with the most significant byte.
 // See also: https://commandcenter.blogspot.com/2012/04/byte-order-fallacy.html
@@ -105,7 +127,7 @@ T ReadBytesMostSignificantByteFirst(span<uint8_t> in) {
 }
 
 // Reads the start of an item with definitive size from |in|.
-// |type| is the major type as specified in section 2.1.
+// |type| is the major type as specified in RFC 7049 Section 2.1.
 // |value| is the payload (e.g. for MajorType::UNSIGNED) or is the size
 // (e.g. for BYTE_STRING). Remainder is the first byte after
 // the item start, that is, the first byte after the encoded value / size.
@@ -155,6 +177,56 @@ bool ReadItemStart(span<uint8_t>* bytes, MajorType* type, uint64_t* value) {
 }
 }  // namespace
 
+void EncodeUnsigned(uint64_t value, std::vector<uint8_t>* out) {
+  WriteItemStart(MajorType::UNSIGNED, value, out);
+}
+
+bool DecodeUnsigned(span<uint8_t>* bytes, uint64_t* value) {
+  MajorType type;
+  span<uint8_t> internal_bytes = *bytes;
+  uint64_t internal_value;
+  if (!ReadItemStart(&internal_bytes, &type, &internal_value)) return false;
+  if (type != MajorType::UNSIGNED) return false;
+  *bytes = internal_bytes;
+  *value = internal_value;
+  return true;
+}
+
+namespace internal {
+// The following two routines implement encoding / decoding for NEGATIVE,
+// Major Type 1 (see RFC 7049, Section 2.1). However, we will (thus far)
+// only be using int32_t values anyway, so the method exposed in the
+// header instead EncodeSigned (below), which dispatches between
+// UNSIGNED and NEGATIVE.
+
+// Encodes |value| as NEGATIVE (major type 1). |value| must be negative.
+void EncodeNegative(int64_t value, std::vector<uint8_t>* out) {
+  assert(value < 0);
+  WriteItemStart(MajorType::NEGATIVE, static_cast<uint64_t>(-(value + 1)), out);
+}
+
+// Decodes |value| from |bytes|, assuming that it's encoded as NEGATIVE.
+// (major type 1). Iff successful, updates |bytes| to position after
+// the negative int and returns true.
+bool DecodeNegative(span<uint8_t>* bytes, int64_t* value) {
+  MajorType type;
+  span<uint8_t> internal_bytes = *bytes;
+  uint64_t encoded_value;
+  if (!ReadItemStart(&internal_bytes, &type, &encoded_value)) return false;
+  if (type != MajorType::NEGATIVE) return false;
+  *value = -static_cast<int64_t>(encoded_value) - 1;
+  *bytes = internal_bytes;
+  return true;
+}
+}  // namespace internal
+
+void EncodeSigned(int32_t value, std::vector<uint8_t>* out) {
+  if (value >= 0)
+    EncodeUnsigned(value, out);
+  else
+    internal::EncodeNegative(value, out);
+}
+
 void EncodeUTF16String(span<uint16_t> in, std::vector<uint8_t>* out) {
   WriteItemStart(MajorType::BYTE_STRING, static_cast<uint64_t>(in.size_bytes()),
                  out);
@@ -191,5 +263,78 @@ bool DecodeUTF16String(span<uint8_t>* bytes, std::vector<uint16_t>* str) {
   }
   *bytes = internal_bytes.subspan(num_bytes);
   return true;
+}
+
+// A double is encoded with a specific initial byte
+// (kInitialByteForDouble) plus the 64 bits of payload for its value.
+constexpr int kEncodedDoubleSize = 1 + sizeof(uint64_t);
+
+void EncodeDouble(double value, std::vector<uint8_t>* out) {
+  // The additional_info=27 indicates 64 bits for the double follow.
+  // See RFC 7049 Section 2.3, Table 1.
+  out->reserve(out->size() + kEncodedDoubleSize);
+  out->push_back(kInitialByteForDouble);
+  union {
+    double from_double;
+    uint64_t to_uint64;
+  } reinterpret;
+  reinterpret.from_double = value;
+  WriteBytesMostSignificantByteFirst<uint64_t>(reinterpret.to_uint64, out);
+}
+
+bool DecodeDouble(span<uint8_t>* bytes, double* value) {
+  if (bytes->size() < kEncodedDoubleSize) return false;
+  if ((*bytes)[0] != kInitialByteForDouble) return false;
+  union {
+    uint64_t from_uint64;
+    double to_double;
+  } reinterpret;
+  reinterpret.from_uint64 =
+      ReadBytesMostSignificantByteFirst<uint64_t>(bytes->subspan(1));
+  *value = reinterpret.to_double;
+  *bytes = bytes->subspan(kEncodedDoubleSize);
+  return true;
+}
+
+class JsonToBinaryEncoder : public JsonParserHandler {
+ public:
+  JsonToBinaryEncoder(std::vector<uint8_t>* out, bool* error)
+      : out_(out), error_(error) {
+    *error_ = false;
+  }
+  void HandleObjectBegin() override {
+    out_->push_back(kInitialByteIndefiniteLengthMap);
+  }
+  void HandleObjectEnd() override { out_->push_back(kStopByte); };
+  void HandleArrayBegin() override {
+    out_->push_back(kInitialByteIndefiniteLengthArray);
+  }
+  void HandleArrayEnd() override { out_->push_back(kStopByte); };
+  void HandleString(std::vector<uint16_t> chars) override {
+    EncodeUTF16String(span<uint16_t>(chars.data(), chars.size()), out_);
+  }
+  void HandleDouble(double value) override { EncodeDouble(value, out_); };
+  void HandleInt(int32_t value) override { EncodeSigned(value, out_); }
+  void HandleBool(bool value) override {
+    // See RFC 7049 Section 2.3, Table 2.
+    out_->push_back(value ? kEncodedTrue : kEncodedFalse);
+  }
+  void HandleNull() override {
+    // See RFC 7049 Section 2.3, Table 2.
+    out_->push_back(kEncodedNull);
+  }
+  void HandleError() override {
+    *error_ = true;
+    out_->clear();
+  }
+
+ private:
+  std::vector<uint8_t>* out_;
+  bool* error_;
+};
+
+std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
+    std::vector<uint8_t>* out, bool* error) {
+  return std::make_unique<JsonToBinaryEncoder>(out, error);
 }
 }  // namespace inspector_protocol
