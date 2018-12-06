@@ -31,6 +31,7 @@ static_library("binary_encoding") {
   sources = [
     "encoding/binary_encoding.cc",
     "encoding/binary_encoding.h",
+    "encoding/json_parser_handler.h",
     "encoding/span.h",
   ]
   deps = [
