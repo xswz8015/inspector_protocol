@@ -119,7 +119,7 @@ void WriteItemStart(MajorType type, uint64_t value,
 // See also: https://commandcenter.blogspot.com/2012/04/byte-order-fallacy.html
 template <typename T>
 T ReadBytesMostSignificantByteFirst(span<uint8_t> in) {
-  assert(in.size() >= sizeof(T));
+  assert(size_t(in.size()) >= sizeof(T));
   T result = 0;
   for (size_t shift_bytes = 0; shift_bytes < sizeof(T); ++shift_bytes)
     result |= T(in[sizeof(T) - 1 - shift_bytes]) << (shift_bytes * 8);
