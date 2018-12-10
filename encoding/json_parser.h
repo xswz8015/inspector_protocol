@@ -9,18 +9,9 @@
 #include <vector>
 #include "json_parser_handler.h"
 #include "span.h"
+#include "system_deps.h"
 
 namespace inspector_protocol {
-// Client code must provide an instance. Implementation should delegate
-// to whatever is appropriate.
-class SystemDeps {
- public:
-  virtual ~SystemDeps() = default;
-  // Parses |str| into |result|. Returns false iff there are
-  // leftover characters or parsing errors.
-  virtual bool StrToD(const char* str, double* result) const = 0;
-};
-
 // JSON parsing routines.
 void parseJSONChars(const SystemDeps* deps, span<uint8_t> chars,
                     JsonParserHandler* handler);

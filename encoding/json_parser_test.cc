@@ -9,18 +9,9 @@
 #include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "gtest/gtest.h"
+#include "linux_dev_system_deps.h"
 
 namespace inspector_protocol {
-class LinuxDeps : public SystemDeps {
-  bool StrToD(const char* str, double* result) const override {
-    locale_t new_locale = newlocale(LC_NUMERIC_MASK, "C", NULL);
-    char* end;
-    *result = strtod_l(str, &end, new_locale);
-    freelocale(new_locale);
-    return errno != ERANGE && end == str + strlen(str);
-  }
-};
-
 class Log : public JsonParserHandler {
  public:
   void HandleObjectBegin() override { log_ << "object begin\n"; }
@@ -48,14 +39,13 @@ class Log : public JsonParserHandler {
 
 class JsonParserTest : public ::testing::Test {
  protected:
-  LinuxDeps deps_;
   Log log_;
 };
 
 TEST_F(JsonParserTest, SimpleDictionary) {
   std::string json = "{\"foo\": 42}";
   parseJSONChars(
-      &deps_,
+      GetLinuxDevSystemDeps(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
   EXPECT_EQ(
@@ -69,7 +59,7 @@ TEST_F(JsonParserTest, SimpleDictionary) {
 TEST_F(JsonParserTest, NestedDictionary) {
   std::string json = "{\"foo\": {\"bar\": {\"baz\": 1}, \"bar2\": 2}}";
   parseJSONChars(
-      &deps_,
+      GetLinuxDevSystemDeps(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
   EXPECT_EQ(
@@ -91,7 +81,7 @@ TEST_F(JsonParserTest, NestedDictionary) {
 TEST_F(JsonParserTest, Doubles) {
   std::string json = "{\"foo\": 3.1415, \"bar\": 31415e-4}";
   parseJSONChars(
-      &deps_,
+      GetLinuxDevSystemDeps(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
   EXPECT_EQ(
@@ -108,7 +98,7 @@ TEST_F(JsonParserTest, Unicode) {
   // Globe character. 0xF0 0x9F 0x8C 0x8E in utf8, 0xD83C 0xDF0E in utf16.
   std::string json = "{\"msg\": \"Hello, \\uD83C\\uDF0E.\"}";
   parseJSONChars(
-      &deps_,
+      GetLinuxDevSystemDeps(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
   EXPECT_EQ(
@@ -126,7 +116,7 @@ TEST_F(JsonParserTest, Unicode_ParseUtf16) {
   // We provide the moon with json escape, but the earth as utf16 input.
   // Either way they arrive as utf8 (after decoding in log_.str()).
   base::string16 json = base::UTF8ToUTF16("{\"space\": \"🌎 \\uD83C\\uDF19.\"}");
-  parseJSONChars(&deps_,
+  parseJSONChars(GetLinuxDevSystemDeps(),
                  span<uint16_t>(reinterpret_cast<const uint16_t*>(json.data()),
                                 json.size()),
                  &log_);
@@ -142,7 +132,7 @@ TEST_F(JsonParserTest, Error) {
   // There's an error because the key bar, a string, is not terminated.
   std::string json = "{\"foo\": 3.1415, \"bar: 31415e-4}";
   parseJSONChars(
-      &deps_,
+      GetLinuxDevSystemDeps(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
   EXPECT_EQ(
