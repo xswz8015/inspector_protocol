@@ -10,16 +10,16 @@ static_library("json_parser") {
     "encoding/json_parser.cc",
     "encoding/json_parser.h",
     "encoding/json_parser_handler.h",
+    "encoding/platform.h",
     "encoding/span.h",
-    "encoding/system_deps.h",
   ]
 }
 
-static_library("linux_dev_system_deps") {
+static_library("linux_dev_platform") {
   sources = [
-    "encoding/linux_dev_system_deps.cc",
-    "encoding/linux_dev_system_deps.h",
-    "encoding/system_deps.h",
+    "encoding/linux_dev_platform.cc",
+    "encoding/linux_dev_platform.h",
+    "encoding/platform.h",
   ]
 }
 
@@ -29,7 +29,7 @@ test("json_parser_test") {
   ]
   deps = [
     ":json_parser",
-    ":linux_dev_system_deps",
+    ":linux_dev_platform",
     "//testing:gtest_main",
     "//third_party/gtest:gmock",
     "//third_party/gtest:gtest",
@@ -55,7 +55,7 @@ test("binary_encoding_test") {
   ]
   deps = [
     ":binary_encoding",
-    ":linux_dev_system_deps",
+    ":linux_dev_platform",
     "//testing:gtest_main",
     "//third_party/gtest:gmock",
     "//third_party/gtest:gtest",
@@ -90,7 +90,7 @@ test("json_std_string_writer_test") {
   ]
   deps = [
     ":json_std_string_writer",
-    ":linux_dev_system_deps",
+    ":linux_dev_platform",
     "//testing:gtest_main",
     "//third_party/gtest:gmock",
     "//third_party/gtest:gtest",

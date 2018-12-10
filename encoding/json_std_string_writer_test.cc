@@ -7,7 +7,7 @@
 #include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "gtest/gtest.h"
-#include "linux_dev_system_deps.h"
+#include "linux_dev_platform.h"
 
 namespace inspector_protocol {
 std::vector<uint16_t> UTF16String(const std::string& utf8) {
@@ -20,7 +20,7 @@ TEST(JsonStdStringWriterTest, HelloWorld) {
   std::string out;
   bool error;
   std::unique_ptr<JsonParserHandler> writer =
-      NewJsonWriter(GetLinuxDevSystemDeps(), &out, &error);
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &error);
   writer->HandleObjectBegin();
   writer->HandleString(UTF16String("msg1"));
   writer->HandleString(UTF16String("Hello, 🌎."));

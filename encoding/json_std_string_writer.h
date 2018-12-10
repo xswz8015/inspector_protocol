@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 #include "json_parser_handler.h"
-#include "system_deps.h"
+#include "platform.h"
 
 namespace inspector_protocol {
 // Returns a handler object which will write ascii characters to |out|.
@@ -17,7 +17,7 @@ namespace inspector_protocol {
 // Except for calling the HandleError routine at any time, the client
 // code must call the Handle* methods in an order in which they'd occur
 // in valid JSON; otherwise we may crash (the code uses assert).
-std::unique_ptr<JsonParserHandler> NewJsonWriter(SystemDeps* deps,
+std::unique_ptr<JsonParserHandler> NewJsonWriter(Platform* platform,
                                                  std::string* out, bool* error);
 }  // namespace inspector_protocol
 

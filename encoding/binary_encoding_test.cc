@@ -10,7 +10,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "json_parser.h"
-#include "linux_dev_system_deps.h"
+#include "linux_dev_platform.h"
 
 using testing::ElementsAreArray;
 
@@ -23,7 +23,7 @@ TEST(EncodeDecodeUnsignedTest, Roundtrips23) {
   EncodeUnsigned(23, &encoded);
   // first three bits: major type = 0; remaining five bits: additional info =
   // value 23.
-  EXPECT_THAT(encoded, testing::ElementsAreArray(std::array<uint8_t, 1>{{23}}));
+  EXPECT_THAT(encoded, ElementsAreArray(std::array<uint8_t, 1>{{23}}));
 
   // Now the reverse direction: decode the encoded empty string and store it
   // into |decoded|.
@@ -42,8 +42,7 @@ TEST(EncodeDecodeUnsignedTest, RoundtripsUint8) {
   EncodeUnsigned(42, &encoded);
   // first three bits: major type = 0;
   // remaining five bits: additional info = 24, indicating payload is uint8.
-  EXPECT_THAT(encoded,
-              testing::ElementsAreArray(std::array<uint8_t, 2>{{24, 42}}));
+  EXPECT_THAT(encoded, ElementsAreArray(std::array<uint8_t, 2>{{24, 42}}));
 
   // Reverse direction.
   uint64_t decoded = 0;
@@ -79,8 +78,9 @@ TEST(EncodeDecodeUnsignedTest, RoundtripsUint32) {
   // 1 for initial byte, 4 for the uint32.
   // first three bits: major type = 0;
   // remaining five bits: additional info = 26, indicating payload is uint32.
-  EXPECT_THAT(encoded, testing::ElementsAreArray(std::array<uint8_t, 5>{
-                           {26, 0xde, 0xad, 0xbe, 0xef}}));
+  EXPECT_THAT(
+      encoded,
+      ElementsAreArray(std::array<uint8_t, 5>{{26, 0xde, 0xad, 0xbe, 0xef}}));
 
   // Reverse direction.
   uint64_t decoded;
@@ -98,7 +98,7 @@ TEST(EncodeDecodeUnsignedTest, RoundtripsUint64) {
   // first three bits: major type = 0;
   // remaining five bits: additional info = 27, indicating payload is uint64.
   EXPECT_THAT(encoded,
-              testing::ElementsAreArray(std::array<uint8_t, 9>{
+              ElementsAreArray(std::array<uint8_t, 9>{
                   {27, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11}}));
 
   // Reverse direction.
@@ -351,7 +351,7 @@ TEST(JsonToCborConversion, Encoding) {
       NewJsonToBinaryEncoder(&out, &error);
   span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                          json.size());
-  parseJSONChars(GetLinuxDevSystemDeps(), ascii_in, encoder.get());
+  parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
   std::vector<uint8_t> expected;
   expected.push_back(0xbf);  // indef length map start
   EncodeAsciiStringForTest("string", &expected);
@@ -380,6 +380,6 @@ TEST(JsonToCborConversion, Encoding) {
   expected.push_back(3);
   expected.push_back(0xff);  // End indef length array
   expected.push_back(0xff);  // End indef length map
-  EXPECT_THAT(out, testing::ElementsAreArray(expected));
+  EXPECT_THAT(out, ElementsAreArray(expected));
 }
 }  // namespace inspector_protocol

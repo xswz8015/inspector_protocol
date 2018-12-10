@@ -2,17 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef INSPECTOR_PROTOCOL_ENCODING_SYSTEM_DEPS_H_
-#define INSPECTOR_PROTOCOL_ENCODING_SYSTEM_DEPS_H_
+#ifndef INSPECTOR_PROTOCOL_ENCODING_PLATFORM_H_
+#define INSPECTOR_PROTOCOL_ENCODING_PLATFORM_H_
 
 #include <memory>
 
 namespace inspector_protocol {
 // Client code must provide an instance. Implementation should delegate
 // to whatever is appropriate.
-class SystemDeps {
+class Platform {
  public:
-  virtual ~SystemDeps() = default;
+  virtual ~Platform() = default;
   // Parses |str| into |result|. Returns false iff there are
   // leftover characters or parsing errors.
   virtual bool StrToD(const char* str, double* result) const = 0;
@@ -22,4 +22,4 @@ class SystemDeps {
 };
 }  // namespace inspector_protocol
 
-#endif  // INSPECTOR_PROTOCOL_ENCODING_SYSTEM_DEPS_H_
+#endif  // INSPECTOR_PROTOCOL_ENCODING_PLATFORM_H_

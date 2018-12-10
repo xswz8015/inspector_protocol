@@ -34,8 +34,8 @@ const char* const kFalseString = "false";
 template <typename Char>
 class JsonParser {
  public:
-  JsonParser(const SystemDeps* deps, JsonParserHandler* handler)
-      : deps_(deps), handler_(handler) {}
+  JsonParser(const Platform* platform, JsonParserHandler* handler)
+      : platform_(platform), handler_(handler) {}
 
   void Parse(const Char* start, size_t length) {
     const Char* end = start + length;
@@ -53,12 +53,12 @@ class JsonParser {
       if (!is_ascii) return false;
       buffer.push_back(static_cast<char>(chars[ii]));
     }
-    return deps_->StrToD(buffer.c_str(), result);
+    return platform_->StrToD(buffer.c_str(), result);
   }
 
   bool CharsToDouble(const uint8_t* chars, size_t length, double* result) {
     std::string buffer(reinterpret_cast<const char*>(chars), length);
-    return deps_->StrToD(buffer.c_str(), result);
+    return platform_->StrToD(buffer.c_str(), result);
   }
 
   static bool ParseConstToken(const Char* start, const Char* end,
@@ -504,20 +504,20 @@ class JsonParser {
   }
 
   bool error_ = false;
-  const SystemDeps* deps_;
+  const Platform* platform_;
   JsonParserHandler* handler_;
 };
 }  // namespace
 
-void parseJSONChars(const SystemDeps* deps, span<uint8_t> chars,
+void parseJSONChars(const Platform* platform, span<uint8_t> chars,
                     JsonParserHandler* handler) {
-  JsonParser<uint8_t> parser(deps, handler);
+  JsonParser<uint8_t> parser(platform, handler);
   parser.Parse(chars.data(), chars.size());
 }
 
-void parseJSONChars(const SystemDeps* deps, span<uint16_t> chars,
+void parseJSONChars(const Platform* platform, span<uint16_t> chars,
                     JsonParserHandler* handler) {
-  JsonParser<uint16_t> parser(deps, handler);
+  JsonParser<uint16_t> parser(platform, handler);
   parser.Parse(chars.data(), chars.size());
 }
 }  // namespace inspector_protocol

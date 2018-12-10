@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "linux_dev_system_deps.h"
+#include "linux_dev_platform.h"
 
 #include <cstring>
 #include <iomanip>
@@ -11,7 +11,7 @@
 
 namespace inspector_protocol {
 namespace {
-class LinuxDeps : public SystemDeps {
+class LinuxDevPlatform : public Platform {
   bool StrToD(const char* str, double* result) const override {
     locale_t new_locale = newlocale(LC_NUMERIC_MASK, "C", NULL);
     char* end;
@@ -32,8 +32,8 @@ class LinuxDeps : public SystemDeps {
 };
 }  // namespace
 
-SystemDeps* GetLinuxDevSystemDeps() {
-  static SystemDeps* deps = new LinuxDeps;
+Platform* GetLinuxDevPlatform() {
+  static Platform* deps = new LinuxDevPlatform;
   return deps;
 }
 }  // namespace inspector_protocol

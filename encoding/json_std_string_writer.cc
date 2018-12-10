@@ -45,11 +45,11 @@ class State {
   int size_ = 0;
 };
 
-// Handler interface for JSON parser events. See also json_parser.h.
+// Implements a handler for JSON parser events to emit a JSON string.
 class Writer : public JsonParserHandler {
  public:
-  Writer(SystemDeps* deps, std::string* out, bool* error)
-      : deps_(deps), out_(out), error_(error) {
+  Writer(Platform* platform, std::string* out, bool* error)
+      : platform_(platform), out_(out), error_(error) {
     *error_ = false;
     state_.emplace(Container::NONE);
   }
@@ -115,7 +115,7 @@ class Writer : public JsonParserHandler {
   void HandleDouble(double value) override {
     if (*error_) return;
     state_.top().StartElement(out_);
-    std::unique_ptr<char[]> chars = deps_->DToStr(value);
+    std::unique_ptr<char[]> chars = platform_->DToStr(value);
     out_->append(&chars[0]);
   }
 
@@ -140,16 +140,16 @@ class Writer : public JsonParserHandler {
   void HandleError() override { *error_ = true; }
 
  private:
-  SystemDeps* deps_;
+  Platform* platform_;
   std::string* out_;
   bool* error_;
   std::stack<State> state_;
 };
 }  // namespace
 
-std::unique_ptr<JsonParserHandler> NewJsonWriter(SystemDeps* deps,
+std::unique_ptr<JsonParserHandler> NewJsonWriter(Platform* platform,
                                                  std::string* out,
                                                  bool* error) {
-  return std::make_unique<Writer>(deps, out, error);
+  return std::make_unique<Writer>(platform, out, error);
 }
 }  // namespace inspector_protocol

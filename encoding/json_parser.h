@@ -8,14 +8,14 @@
 #include <cstdint>
 #include <vector>
 #include "json_parser_handler.h"
+#include "platform.h"
 #include "span.h"
-#include "system_deps.h"
 
 namespace inspector_protocol {
 // JSON parsing routines.
-void parseJSONChars(const SystemDeps* deps, span<uint8_t> chars,
+void parseJSONChars(const Platform* deps, span<uint8_t> chars,
                     JsonParserHandler* handler);
-void parseJSONChars(const SystemDeps* deps, span<uint16_t> chars,
+void parseJSONChars(const Platform* deps, span<uint16_t> chars,
                     JsonParserHandler* handler);
 }  // namespace inspector_protocol
 
