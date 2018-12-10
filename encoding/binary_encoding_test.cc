@@ -10,6 +10,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "json_parser.h"
+#include "linux_dev_system_deps.h"
 
 using testing::ElementsAreArray;
 
@@ -324,16 +325,6 @@ TEST(EncodeDecodeDoubleTest, RoundtripsAdditionalExamples) {
   }
 }
 
-class LinuxDeps : public SystemDeps {
-  bool StrToD(const char* str, double* result) const override {
-    locale_t new_locale = newlocale(LC_NUMERIC_MASK, "C", NULL);
-    char* end;
-    *result = strtod_l(str, &end, new_locale);
-    freelocale(new_locale);
-    return errno != ERANGE && end == str + strlen(str);
-  }
-};
-
 void EncodeAsciiStringForTest(const std::string& key,
                               std::vector<uint8_t>* out) {
   // TODO(johannes): Later, we'll want to support utf8 strings for such keys.
@@ -358,10 +349,9 @@ TEST(JsonToCborConversion, Encoding) {
   bool error;
   std::unique_ptr<JsonParserHandler> encoder =
       NewJsonToBinaryEncoder(&out, &error);
-  LinuxDeps deps;
   span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                          json.size());
-  parseJSONChars(&deps, ascii_in, encoder.get());
+  parseJSONChars(GetLinuxDevSystemDeps(), ascii_in, encoder.get());
   std::vector<uint8_t> expected;
   expected.push_back(0xbf);  // indef length map start
   EncodeAsciiStringForTest("string", &expected);
