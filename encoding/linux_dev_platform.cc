@@ -17,7 +17,13 @@ class LinuxDevPlatform : public Platform {
     char* end;
     *result = strtod_l(str, &end, new_locale);
     freelocale(new_locale);
-    return errno != ERANGE && end == str + strlen(str);
+    if (errno == ERANGE) {
+      // errno must be reset, e.g. see the example here:
+      // https://en.cppreference.com/w/cpp/string/byte/strtof
+      errno = 0;
+      return false;
+    }
+    return end == str + strlen(str);
   }
 
   std::unique_ptr<char[]> DToStr(double value) const override {

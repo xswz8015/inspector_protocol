@@ -26,6 +26,7 @@ enum Token {
   ListSeparator,
   ObjectPairSeparator,
   InvalidToken,
+  NoInput
 };
 
 const char* const kNullString = "null";
@@ -246,7 +247,7 @@ class JsonParser {
     SkipWhitespaceAndComments(start, end, tokenStart);
     start = *tokenStart;
 
-    if (start == end) return InvalidToken;
+    if (start == end) return NoInput;
 
     switch (*start) {
       case 'n':
@@ -372,6 +373,9 @@ class JsonParser {
     const Char* token_end;
     Token token = ParseToken(start, end, &token_start, &token_end);
     switch (token) {
+      case NoInput:
+        HandleError(Error::JSON_PARSER_NO_INPUT, token_start);
+        return;
       case InvalidToken:
         HandleError(Error::JSON_PARSER_INVALID_TOKEN, token_start);
         return;
@@ -433,10 +437,6 @@ class JsonParser {
             return;
           }
         }
-        if (token != ArrayEnd) {
-          HandleError(Error::JSON_PARSER_ARRAY_END_EXPECTED, token_start);
-          return;
-        }
         handler_->HandleArrayEnd();
         break;
       }
@@ -486,10 +486,6 @@ class JsonParser {
                         token_start);
             return;
           }
-        }
-        if (token != ObjectEnd) {
-          HandleError(Error::JSON_PARSER_OBJECT_END_EXPECTED, token_start);
-          return;
         }
         handler_->HandleObjectEnd();
         break;
