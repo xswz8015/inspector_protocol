@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "status.h"
 
 namespace inspector_protocol {
 // Handler interface for JSON parser events. See also json_parser.h.
@@ -28,7 +29,8 @@ class JsonParserHandler {
   // The parser may send one error even after other events have already
   // been received. Client code is reponsible to then discard the
   // already processed events.
-  virtual void HandleError() = 0;
+  // |error| must be an eror, as in, |error.is_ok()| can't be true.
+  virtual void HandleError(Status error) = 0;
 };
 }  // namespace inspector_protocol
 

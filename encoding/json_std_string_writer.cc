@@ -48,14 +48,14 @@ class State {
 // Implements a handler for JSON parser events to emit a JSON string.
 class Writer : public JsonParserHandler {
  public:
-  Writer(Platform* platform, std::string* out, bool* error)
-      : platform_(platform), out_(out), error_(error) {
-    *error_ = false;
+  Writer(Platform* platform, std::string* out, Status* status)
+      : platform_(platform), out_(out), status_(status) {
+    *status_ = Status();
     state_.emplace(Container::NONE);
   }
 
   void HandleObjectBegin() override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     assert(!state_.empty());
     state_.top().StartElement(out_);
     state_.emplace(Container::OBJECT);
@@ -63,28 +63,28 @@ class Writer : public JsonParserHandler {
   }
 
   void HandleObjectEnd() override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     assert(state_.size() >= 2 && state_.top().container() == Container::OBJECT);
     state_.pop();
     out_->append("}");
   }
 
   void HandleArrayBegin() override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     state_.top().StartElement(out_);
     state_.emplace(Container::ARRAY);
     out_->append("[");
   }
 
   void HandleArrayEnd() override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     assert(state_.size() >= 2 && state_.top().container() == Container::ARRAY);
     state_.pop();
     out_->append("]");
   }
 
   void HandleString(std::vector<uint16_t> chars) override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     state_.top().StartElement(out_);
     out_->append("\"");
     for (const uint16_t ch : chars) {
@@ -113,43 +113,46 @@ class Writer : public JsonParserHandler {
   }
 
   void HandleDouble(double value) override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     state_.top().StartElement(out_);
     std::unique_ptr<char[]> chars = platform_->DToStr(value);
     out_->append(&chars[0]);
   }
 
   void HandleInt(int32_t value) override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     state_.top().StartElement(out_);
     out_->append(std::to_string(value));
   }
 
   void HandleBool(bool value) override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     state_.top().StartElement(out_);
     out_->append(value ? "true" : "false");
   }
 
   void HandleNull() override {
-    if (*error_) return;
+    if (!status_->ok()) return;
     state_.top().StartElement(out_);
     out_->append("null");
   }
 
-  void HandleError() override { *error_ = true; }
+  void HandleError(Status error) override {
+    assert(!error.ok());
+    *status_ = error;
+  }
 
  private:
   Platform* platform_;
   std::string* out_;
-  bool* error_;
+  Status* status_;
   std::stack<State> state_;
 };
 }  // namespace
 
 std::unique_ptr<JsonParserHandler> NewJsonWriter(Platform* platform,
                                                  std::string* out,
-                                                 bool* error) {
-  return std::make_unique<Writer>(platform, out, error);
+                                                 Status* status) {
+  return std::make_unique<Writer>(platform, out, status);
 }
 }  // namespace inspector_protocol

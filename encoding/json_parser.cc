@@ -7,6 +7,7 @@
 #include <cassert>
 #include <limits>
 #include <string>
+#include "status.h"
 
 namespace inspector_protocol {
 namespace {
@@ -38,10 +39,13 @@ class JsonParser {
       : platform_(platform), handler_(handler) {}
 
   void Parse(const Char* start, size_t length) {
+    start_pos_ = start;
     const Char* end = start + length;
     const Char* tokenEnd;
     ParseValue(start, end, &tokenEnd, 0);
-    if (tokenEnd != end) HandleError();
+    if (tokenEnd != end) {
+      HandleError(Error::JSON_PARSER_UNPROCESSED_INPUT_REMAINS, tokenEnd);
+    }
   }
 
  private:
@@ -361,7 +365,7 @@ class JsonParser {
   void ParseValue(const Char* start, const Char* end,
                   const Char** value_token_end, int depth) {
     if (depth > kStackLimit) {
-      HandleError();
+      HandleError(Error::JSON_PARSER_STACK_LIMIT_EXCEEDED, start);
       return;
     }
     const Char* token_start;
@@ -369,7 +373,7 @@ class JsonParser {
     Token token = ParseToken(start, end, &token_start, &token_end);
     switch (token) {
       case InvalidToken:
-        HandleError();
+        HandleError(Error::JSON_PARSER_INVALID_TOKEN, token_start);
         return;
       case NullToken:
         handler_->HandleNull();
@@ -383,7 +387,7 @@ class JsonParser {
       case Number: {
         double value;
         if (!CharsToDouble(token_start, token_end - token_start, &value)) {
-          handler_->HandleError();
+          HandleError(Error::JSON_PARSER_INVALID_NUMBER, token_start);
           return;
         }
         if (value >= std::numeric_limits<int32_t>::min() &&
@@ -398,7 +402,7 @@ class JsonParser {
         std::vector<uint16_t> value;
         bool ok = DecodeString(token_start + 1, token_end - 1, &value);
         if (!ok) {
-          HandleError();
+          HandleError(Error::JSON_PARSER_INVALID_STRING, token_start);
           return;
         }
         handler_->HandleString(std::move(value));
@@ -419,17 +423,18 @@ class JsonParser {
             start = token_end;
             token = ParseToken(start, end, &token_start, &token_end);
             if (token == ArrayEnd) {
-              HandleError();
+              HandleError(Error::JSON_PARSER_UNEXPECTED_ARRAY_END, token_start);
               return;
             }
           } else if (token != ArrayEnd) {
             // Unexpected value after list value. Bail out.
-            HandleError();
+            HandleError(Error::JSON_PARSER_COMMA_OR_ARRAY_END_EXPECTED,
+                        token_start);
             return;
           }
         }
         if (token != ArrayEnd) {
-          HandleError();
+          HandleError(Error::JSON_PARSER_ARRAY_END_EXPECTED, token_start);
           return;
         }
         handler_->HandleArrayEnd();
@@ -441,12 +446,13 @@ class JsonParser {
         token = ParseToken(start, end, &token_start, &token_end);
         while (token != ObjectEnd) {
           if (token != StringLiteral) {
-            HandleError();
+            HandleError(Error::JSON_PARSER_STRING_LITERAL_EXPECTED,
+                        token_start);
             return;
           }
           std::vector<uint16_t> key;
           if (!DecodeString(token_start + 1, token_end - 1, &key)) {
-            HandleError();
+            HandleError(Error::JSON_PARSER_INVALID_STRING, token_start);
             return;
           }
           handler_->HandleString(std::move(key));
@@ -454,7 +460,7 @@ class JsonParser {
 
           token = ParseToken(start, end, &token_start, &token_end);
           if (token != ObjectPairSeparator) {
-            HandleError();
+            HandleError(Error::JSON_PARSER_COLON_EXPECTED, token_start);
             return;
           }
           start = token_end;
@@ -470,17 +476,19 @@ class JsonParser {
             start = token_end;
             token = ParseToken(start, end, &token_start, &token_end);
             if (token == ObjectEnd) {
-              HandleError();
+              HandleError(Error::JSON_PARSER_UNEXPECTED_OBJECT_END,
+                          token_start);
               return;
             }
           } else if (token != ObjectEnd) {
             // Unexpected value after last object value. Bail out.
-            HandleError();
+            HandleError(Error::JSON_PARSER_COMMA_OR_OBJECT_END_EXPECTED,
+                        token_start);
             return;
           }
         }
         if (token != ObjectEnd) {
-          HandleError();
+          HandleError(Error::JSON_PARSER_OBJECT_END_EXPECTED, token_start);
           return;
         }
         handler_->HandleObjectEnd();
@@ -489,20 +497,22 @@ class JsonParser {
 
       default:
         // We got a token that's not a value.
-        HandleError();
+        HandleError(Error::JSON_PARSER_VALUE_EXPECTED, token_start);
         return;
     }
 
     SkipWhitespaceAndComments(token_end, end, value_token_end);
   }
 
-  void HandleError() {
+  void HandleError(Error error, const Char* pos) {
+    assert(error != Error::OK);
     if (!error_) {
-      handler_->HandleError();
+      handler_->HandleError(Status{error, pos - start_pos_});
       error_ = true;
     }
   }
 
+  const Char* start_pos_ = nullptr;
   bool error_ = false;
   const Platform* platform_;
   JsonParserHandler* handler_;

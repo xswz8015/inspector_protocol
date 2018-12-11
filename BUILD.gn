@@ -12,6 +12,7 @@ static_library("json_parser") {
     "encoding/json_parser_handler.h",
     "encoding/platform.h",
     "encoding/span.h",
+    "encoding/status.h",
   ]
 }
 
@@ -43,6 +44,7 @@ static_library("binary_encoding") {
     "encoding/binary_encoding.h",
     "encoding/json_parser_handler.h",
     "encoding/span.h",
+    "encoding/status.h",
   ]
   deps = [
     ":json_parser",

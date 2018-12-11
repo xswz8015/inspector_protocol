@@ -15,26 +15,38 @@ namespace inspector_protocol {
 class Log : public JsonParserHandler {
  public:
   void HandleObjectBegin() override { log_ << "object begin\n"; }
+
   void HandleObjectEnd() override { log_ << "object end\n"; }
+
   void HandleArrayBegin() override { log_ << "array begin\n"; }
+
   void HandleArrayEnd() override { log_ << "array end\n"; }
+
   void HandleString(std::vector<uint16_t> chars) override {
     base::StringPiece16 foo(reinterpret_cast<const base::char16*>(chars.data()),
                             chars.size());
     log_ << "string: " << base::UTF16ToUTF8(foo) << "\n";
   }
+
   void HandleDouble(double value) override {
     log_ << "double: " << value << "\n";
   }
-  void HandleInt(int32_t value) override { log_ << "int: " << value << "\n"; }
-  void HandleBool(bool value) override { log_ << "bool: " << value << "\n"; }
-  void HandleNull() override { log_ << "null\n"; }
-  void HandleError() override { log_ << "error\n"; }
 
-  std::string str() { return log_.str(); }
+  void HandleInt(int32_t value) override { log_ << "int: " << value << "\n"; }
+
+  void HandleBool(bool value) override { log_ << "bool: " << value << "\n"; }
+
+  void HandleNull() override { log_ << "null\n"; }
+
+  void HandleError(Status status) override { status_ = status; }
+
+  std::string str() const { return status_.ok() ? log_.str() : ""; }
+
+  Status status() const { return status_; }
 
  private:
   std::ostringstream log_;
+  Status status_;
 };
 
 class JsonParserTest : public ::testing::Test {
@@ -48,6 +60,7 @@ TEST_F(JsonParserTest, SimpleDictionary) {
       GetLinuxDevPlatform(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
+  EXPECT_TRUE(log_.status().ok());
   EXPECT_EQ(
       "object begin\n"
       "string: foo\n"
@@ -62,6 +75,7 @@ TEST_F(JsonParserTest, NestedDictionary) {
       GetLinuxDevPlatform(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
+  EXPECT_TRUE(log_.status().ok());
   EXPECT_EQ(
       "object begin\n"
       "string: foo\n"
@@ -84,6 +98,7 @@ TEST_F(JsonParserTest, Doubles) {
       GetLinuxDevPlatform(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
+  EXPECT_TRUE(log_.status().ok());
   EXPECT_EQ(
       "object begin\n"
       "string: foo\n"
@@ -101,6 +116,7 @@ TEST_F(JsonParserTest, Unicode) {
       GetLinuxDevPlatform(),
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       &log_);
+  EXPECT_TRUE(log_.status().ok());
   EXPECT_EQ(
       "object begin\n"
       "string: msg\n"
@@ -120,6 +136,7 @@ TEST_F(JsonParserTest, Unicode_ParseUtf16) {
                  span<uint16_t>(reinterpret_cast<const uint16_t*>(json.data()),
                                 json.size()),
                  &log_);
+  EXPECT_TRUE(log_.status().ok());
   EXPECT_EQ(
       "object begin\n"
       "string: space\n"
@@ -128,18 +145,26 @@ TEST_F(JsonParserTest, Unicode_ParseUtf16) {
       log_.str());
 }
 
-TEST_F(JsonParserTest, Error) {
+TEST_F(JsonParserTest, Errors) {
   // There's an error because the key bar, a string, is not terminated.
-  std::string json = "{\"foo\": 3.1415, \"bar: 31415e-4}";
-  parseJSONChars(
-      GetLinuxDevPlatform(),
-      span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
-      &log_);
-  EXPECT_EQ(
-      "object begin\n"
-      "string: foo\n"
-      "double: 3.1415\n"
-      "error\n",
-      log_.str());
+  std::string json1 = "{\"foo\": 3.1415, \"bar: 31415e-4}";
+  parseJSONChars(GetLinuxDevPlatform(),
+                 span<uint8_t>(reinterpret_cast<const uint8_t*>(json1.data()),
+                               json1.size()),
+                 &log_);
+  EXPECT_EQ(Error::JSON_PARSER_STRING_LITERAL_EXPECTED, log_.status().error);
+  EXPECT_EQ(16, log_.status().pos);
+  EXPECT_EQ("", log_.str());
+
+  // The second separator should be a comma.
+  std::string json2 = "{\"foo\": 3.1415: \"bar\": 0}";
+  parseJSONChars(GetLinuxDevPlatform(),
+                 span<uint8_t>(reinterpret_cast<const uint8_t*>(json2.data()),
+                               json2.size()),
+                 &log_);
+  EXPECT_EQ(Error::JSON_PARSER_COMMA_OR_OBJECT_END_EXPECTED,
+            log_.status().error);
+  EXPECT_EQ(14, log_.status().pos);
+  EXPECT_EQ("", log_.str());
 }
 }  // namespace inspector_protocol

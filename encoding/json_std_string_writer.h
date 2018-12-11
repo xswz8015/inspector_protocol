@@ -12,13 +12,14 @@
 
 namespace inspector_protocol {
 // Returns a handler object which will write ascii characters to |out|.
-// |*error| will be true iff the handler routine HandleError() is called.
+// |status->ok()| will be false iff the handler routine HandleError() is called.
 // In that case, we'll stop emitting output.
 // Except for calling the HandleError routine at any time, the client
 // code must call the Handle* methods in an order in which they'd occur
 // in valid JSON; otherwise we may crash (the code uses assert).
 std::unique_ptr<JsonParserHandler> NewJsonWriter(Platform* platform,
-                                                 std::string* out, bool* error);
+                                                 std::string* out,
+                                                 Status* status);
 }  // namespace inspector_protocol
 
 #endif  // INSPECTOR_PROTOCOL_ENCODING_JSON_STD_STRING_WRITER_H_

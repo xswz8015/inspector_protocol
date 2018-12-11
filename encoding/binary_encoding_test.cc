@@ -346,9 +346,9 @@ TEST(JsonToCborConversion, Encoding) {
      "array": [1,2,3]
   })raw";
   std::vector<uint8_t> out;
-  bool error;
+  Status status;
   std::unique_ptr<JsonParserHandler> encoder =
-      NewJsonToBinaryEncoder(&out, &error);
+      NewJsonToBinaryEncoder(&out, &status);
   span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                          json.size());
   parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
@@ -380,6 +380,7 @@ TEST(JsonToCborConversion, Encoding) {
   expected.push_back(3);
   expected.push_back(0xff);  // End indef length array
   expected.push_back(0xff);  // End indef length map
+  EXPECT_TRUE(status.ok());
   EXPECT_THAT(out, ElementsAreArray(expected));
 }
 }  // namespace inspector_protocol

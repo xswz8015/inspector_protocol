@@ -18,9 +18,9 @@ std::vector<uint16_t> UTF16String(const std::string& utf8) {
 
 TEST(JsonStdStringWriterTest, HelloWorld) {
   std::string out;
-  bool error;
+  Status status;
   std::unique_ptr<JsonParserHandler> writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &error);
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   writer->HandleObjectBegin();
   writer->HandleString(UTF16String("msg1"));
   writer->HandleString(UTF16String("Hello, 🌎."));
@@ -44,7 +44,7 @@ TEST(JsonStdStringWriterTest, HelloWorld) {
   writer->HandleInt(3);
   writer->HandleArrayEnd();
   writer->HandleObjectEnd();
-  EXPECT_FALSE(error);
+  EXPECT_TRUE(status.ok());
   EXPECT_EQ(
       "{\"msg1\":\"Hello, \\ud83c\\udf0e.\","
       "\"msg2\":\"\\\\\\b\\r\\n\\t\\f\\\"\","

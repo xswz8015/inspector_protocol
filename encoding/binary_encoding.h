@@ -10,6 +10,7 @@
 #include <vector>
 #include "json_parser_handler.h"
 #include "span.h"
+#include "status.h"
 
 namespace inspector_protocol {
 // The binary encoding for the inspector protocol follows the CBOR specification
@@ -44,12 +45,11 @@ bool DecodeUTF16String(span<uint8_t>* bytes, std::vector<uint16_t>* str);
 void EncodeDouble(double value, std::vector<uint8_t>* out);
 bool DecodeDouble(span<uint8_t>* bytes, double* value);
 
-// This can be used to convert from JSON to this binary encoding,
-// by passing the return value to the routines in json_parser.h.
-// The handler will encode into |out|, and iff an error occurs it
-// will set |error| to true and clear |out|. Otherwise, |error| will
-// be set to |false|.
+// This can be used to convert from JSON to this binary encoding, by passing the
+// return value to the routines in json_parser.h.  The handler will encode into
+// |out|, and iff an error occurs it will set |status| to an error and clear
+// |out|. Otherwise, |status.ok()| will be |true|.
 std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
-    std::vector<uint8_t>* out, bool* error);
+    std::vector<uint8_t>* out, Status* status);
 }  // namespace inspector_protocol
 #endif  // INSPECTOR_PROTOCOL_ENCODING_BINARY_ENCODING_H_

@@ -298,43 +298,54 @@ bool DecodeDouble(span<uint8_t>* bytes, double* value) {
 
 class JsonToBinaryEncoder : public JsonParserHandler {
  public:
-  JsonToBinaryEncoder(std::vector<uint8_t>* out, bool* error)
-      : out_(out), error_(error) {
-    *error_ = false;
+  JsonToBinaryEncoder(std::vector<uint8_t>* out, Status* status)
+      : out_(out), status_(status) {
+    *status_ = Status();
   }
+
   void HandleObjectBegin() override {
     out_->push_back(kInitialByteIndefiniteLengthMap);
   }
+
   void HandleObjectEnd() override { out_->push_back(kStopByte); };
+
   void HandleArrayBegin() override {
     out_->push_back(kInitialByteIndefiniteLengthArray);
   }
+
   void HandleArrayEnd() override { out_->push_back(kStopByte); };
+
   void HandleString(std::vector<uint16_t> chars) override {
     EncodeUTF16String(span<uint16_t>(chars.data(), chars.size()), out_);
   }
+
   void HandleDouble(double value) override { EncodeDouble(value, out_); };
+
   void HandleInt(int32_t value) override { EncodeSigned(value, out_); }
+
   void HandleBool(bool value) override {
     // See RFC 7049 Section 2.3, Table 2.
     out_->push_back(value ? kEncodedTrue : kEncodedFalse);
   }
+
   void HandleNull() override {
     // See RFC 7049 Section 2.3, Table 2.
     out_->push_back(kEncodedNull);
   }
-  void HandleError() override {
-    *error_ = true;
+
+  void HandleError(Status error) override {
+    assert(!error.ok());
+    *status_ = error;
     out_->clear();
   }
 
  private:
   std::vector<uint8_t>* out_;
-  bool* error_;
+  Status* status_;
 };
 
 std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
-    std::vector<uint8_t>* out, bool* error) {
-  return std::make_unique<JsonToBinaryEncoder>(out, error);
+    std::vector<uint8_t>* out, Status* status) {
+  return std::make_unique<JsonToBinaryEncoder>(out, status);
 }
 }  // namespace inspector_protocol
