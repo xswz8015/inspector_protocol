@@ -28,6 +28,10 @@ bool DecodeUnsigned(span<uint8_t>* bytes, uint64_t* value);
 // (major type 1) iff < 0.
 void EncodeSigned(int32_t value, std::vector<uint8_t>* out);
 
+// Decodes |value| from |bytes|, if it's encoded as either UNSIGNED
+// or NEGATIVE and within range of int32_t. Otherwise returns false.
+bool DecodeSigned(span<uint8_t>* bytes, int32_t* value);
+
 // Encodes a UTF16 string as a BYTE_STRING (major type 2). Each utf16
 // character in |in| is emitted with most significant byte first,
 // appending to |out|.
@@ -51,5 +55,11 @@ bool DecodeDouble(span<uint8_t>* bytes, double* value);
 // |out|. Otherwise, |status.ok()| will be |true|.
 std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
     std::vector<uint8_t>* out, Status* status);
+
+// Parses a binary encoded message from |bytes|, sending JSON events to
+// |json_out|. If an error occurs, sends |out->HandleError|, and parsing stops.
+// The client is responsible for discarding the already received information in
+// that case.
+void ParseBinary(span<uint8_t> bytes, JsonParserHandler* json_out);
 }  // namespace inspector_protocol
 #endif  // INSPECTOR_PROTOCOL_ENCODING_BINARY_ENCODING_H_

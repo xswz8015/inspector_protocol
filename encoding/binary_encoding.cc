@@ -69,6 +69,10 @@ static constexpr uint8_t kInitialByteIndefiniteLengthMap =
 static constexpr uint8_t kStopByte =
     EncodeInitialByte(MajorType::SIMPLE_VALUE, 31);
 
+// When parsing binary (CBOR), we limit recursion depth for objects and arrays
+// to this constant.
+static constexpr int kStackLimit = 1000;
+
 // Writes the bytes for |v| to |out|, starting with the most significant byte.
 // See also: https://commandcenter.blogspot.com/2012/04/byte-order-fallacy.html
 template <typename T>
@@ -227,6 +231,32 @@ void EncodeSigned(int32_t value, std::vector<uint8_t>* out) {
     internal::EncodeNegative(value, out);
 }
 
+bool DecodeSigned(span<uint8_t>* bytes, int32_t* value) {
+  MajorType type;
+  span<uint8_t> internal_bytes = *bytes;
+  uint64_t encoded_value;
+  if (!ReadItemStart(&internal_bytes, &type, &encoded_value)) return false;
+  // It's unfortunate that we're rejecting perfectly fine CBOR encoded UNSIGNED
+  // / NEGATIVE values here if they're outside the range of int32_t. This is
+  // (for now) for compatibility with JSON, or more specifically with what our
+  // parser supports via JsonParserHandler::HandleInt.
+  if (type == MajorType::UNSIGNED) {
+    if (encoded_value <= std::numeric_limits<int32_t>::max()) {
+      *value = encoded_value;
+      *bytes = internal_bytes;
+      return true;
+    }
+  } else if (type == MajorType::NEGATIVE) {
+    int64_t decoded_value = -static_cast<int64_t>(encoded_value) - 1;
+    if (decoded_value >= std::numeric_limits<int32_t>::min()) {
+      *value = decoded_value;
+      *bytes = internal_bytes;
+      return true;
+    }
+  }
+  return false;
+}
+
 void EncodeUTF16String(span<uint16_t> in, std::vector<uint8_t>* out) {
   WriteItemStart(MajorType::BYTE_STRING, static_cast<uint64_t>(in.size_bytes()),
                  out);
@@ -296,6 +326,7 @@ bool DecodeDouble(span<uint8_t>* bytes, double* value) {
   return true;
 }
 
+namespace {
 class JsonToBinaryEncoder : public JsonParserHandler {
  public:
   JsonToBinaryEncoder(std::vector<uint8_t>* out, Status* status)
@@ -343,9 +374,153 @@ class JsonToBinaryEncoder : public JsonParserHandler {
   std::vector<uint8_t>* out_;
   Status* status_;
 };
+}  // namespace
 
 std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
     std::vector<uint8_t>* out, Status* status) {
   return std::make_unique<JsonToBinaryEncoder>(out, status);
+}
+
+namespace {
+// Below are three parsing routines for CBOR / binary, which cover enough
+// to roundtrip JSON messages.
+Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
+               JsonParserHandler* out);
+Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
+                 JsonParserHandler* out);
+Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
+                 JsonParserHandler* out);
+
+Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
+                 JsonParserHandler* out) {
+  if (stack_depth > kStackLimit)
+    return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
+  if (bytes->empty()) return Error::BINARY_ENCODING_UNEXPECTED_EOF;
+  // First we dispatch on the entire initial byte. Only when this doesn't
+  // give satisfaction do we use the major types (first three bits)
+  // to dispatch between a few more choices below.
+  switch ((*bytes)[0]) {
+    case kEncodedTrue:
+      out->HandleBool(true);
+      *bytes = bytes->subspan(1);
+      return Error::OK;
+    case kEncodedFalse:
+      out->HandleBool(false);
+      *bytes = bytes->subspan(1);
+      return Error::OK;
+    case kEncodedNull:
+      out->HandleNull();
+      *bytes = bytes->subspan(1);
+      return Error::OK;
+    case kInitialByteForDouble: {
+      double value;
+      if (!DecodeDouble(bytes, &value))
+        return Error::BINARY_ENCODING_INVALID_DOUBLE;
+      out->HandleDouble(value);
+      return Error::OK;
+    }
+    case kInitialByteIndefiniteLengthArray:
+      return ParseArray(stack_depth + 1, bytes, out);
+    case kInitialByteIndefiniteLengthMap:
+      return ParseMap(stack_depth + 1, bytes, out);
+    default:
+      break;
+  }
+  switch ((*bytes)[0] >> kMajorTypeBitShift) {
+    case uint8_t(MajorType::UNSIGNED):
+    case uint8_t(MajorType::NEGATIVE): {
+      int32_t value;
+      if (!DecodeSigned(bytes, &value))
+        return Error::BINARY_ENCODING_INVALID_SIGNED;
+      out->HandleInt(value);
+      return Error::OK;
+    }
+    case uint8_t(MajorType::BYTE_STRING): {
+      std::vector<uint16_t> value;
+      if (!DecodeUTF16String(bytes, &value))
+        return Error::BINARY_ENCODING_INVALID_STRING16;
+      out->HandleString(std::move(value));
+      return Error::OK;
+    }
+    case uint8_t(MajorType::STRING):        // utf8, todo
+    case uint8_t(MajorType::ARRAY):         // indef length case handled above
+    case uint8_t(MajorType::MAP):           // indef length case handled above
+    case uint8_t(MajorType::TAG):           // todo
+    case uint8_t(MajorType::SIMPLE_VALUE):  // supported cases handled above
+    default:
+      return Error::BINARY_ENCODING_UNSUPPORTED_VALUE;
+  }
+}
+
+// |bytes| must start with the indefinite length array byte, so basically,
+// ParseArray may only be called after an indefinite length array has been
+// detected.
+Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
+                 JsonParserHandler* out) {
+  assert(!bytes->empty());
+  assert((*bytes)[0] == kInitialByteIndefiniteLengthArray);
+
+  if (stack_depth > kStackLimit)
+    return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
+  *bytes = bytes->subspan(1);
+  out->HandleArrayBegin();
+  while (!bytes->empty()) {
+    // Parse end of array.
+    if ((*bytes)[0] == kStopByte) {
+      out->HandleArrayEnd();
+      return Error::OK;
+    }
+    // Parse value.
+    Error status = ParseValue(stack_depth + 1, bytes, out);
+    if (status != Error::OK) return status;
+  }
+  return Error::BINARY_ENCODING_UNEXPECTED_EOF;
+}
+
+// |bytes| must start with the indefinite length array byte, so basically,
+// ParseArray may only be called after an indefinite length array has been
+// detected.
+Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
+               JsonParserHandler* out) {
+  assert(!bytes->empty());
+  assert((*bytes)[0] == kInitialByteIndefiniteLengthMap);
+
+  if (stack_depth > kStackLimit)
+    return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
+  *bytes = bytes->subspan(1);
+  out->HandleObjectBegin();
+  while (!bytes->empty()) {
+    // Parse end of map.
+    if ((*bytes)[0] == kStopByte) {
+      out->HandleObjectEnd();
+      return Error::OK;
+    }
+    // Parse key.
+    std::vector<uint16_t> key;
+    if (!DecodeUTF16String(bytes, &key))
+      return Error::BINARY_ENCODING_INVALID_MAP_KEY;
+    out->HandleString(std::move(key));
+    // Parse value.
+    Error status = ParseValue(stack_depth + 1, bytes, out);
+    if (status != Error::OK) return status;
+  }
+  return Error::BINARY_ENCODING_UNEXPECTED_EOF;
+}
+}  // namespace
+
+void ParseBinary(span<uint8_t> bytes, JsonParserHandler* json_out) {
+  if (bytes.empty()) {
+    json_out->HandleError(Status{Error::BINARY_ENCODING_UNEXPECTED_EOF, 0});
+    return;
+  }
+  if (bytes[0] != kInitialByteIndefiniteLengthMap) {
+    json_out->HandleError(
+        Status{Error::BINARY_ENCODING_INDEFINITE_LENGTH_MAP_START_EXPECTED, 0});
+    return;
+  }
+  span<uint8_t> internal_bytes = bytes;
+  Error error = ParseMap(/*stack_depth=*/1, &internal_bytes, json_out);
+  if (error == Error::OK) return;
+  json_out->HandleError(Status{error, bytes.size() - internal_bytes.size()});
 }
 }  // namespace inspector_protocol

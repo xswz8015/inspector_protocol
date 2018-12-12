@@ -10,6 +10,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "json_parser.h"
+#include "json_std_string_writer.h"
 #include "linux_dev_platform.h"
 
 using testing::ElementsAreArray;
@@ -334,21 +335,23 @@ void EncodeAsciiStringForTest(const std::string& key,
   EncodeUTF16String(span<uint16_t>(utf16.data(), utf16.size()), out);
 }
 
-TEST(JsonToCborConversion, Encoding) {
-  // Hits all the cases except error in JsonParserHandler.
-  std::string json = R"raw({
-     "string": "Hello, \ud83c\udf0e.",
-     "double": 3.1415,
-     "int": 1,
-     "negative int": -1,
-     "bool": true,
-     "null": null,
-     "array": [1,2,3]
-  })raw";
-  std::vector<uint8_t> out;
+TEST(JsonCborRoundtrip, EncodingDecoding) {
+  // Hits all the cases except error in JsonParserHandler, first parsing
+  // a JSON message into CBOR, then parsing it back from CBOR into JSON.
+  std::string json =
+      "{"
+      "\"string\":\"Hello, \\ud83c\\udf0e.\","
+      "\"double\":3.1415,"
+      "\"int\":1,"
+      "\"negative int\":-1,"
+      "\"bool\":true,"
+      "\"null\":null,"
+      "\"array\":[1,2,3]"
+      "}";
+  std::vector<uint8_t> encoded;
   Status status;
   std::unique_ptr<JsonParserHandler> encoder =
-      NewJsonToBinaryEncoder(&out, &status);
+      NewJsonToBinaryEncoder(&encoded, &status);
   span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                          json.size());
   parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
@@ -381,6 +384,49 @@ TEST(JsonToCborConversion, Encoding) {
   expected.push_back(0xff);  // End indef length array
   expected.push_back(0xff);  // End indef length map
   EXPECT_TRUE(status.ok());
-  EXPECT_THAT(out, ElementsAreArray(expected));
+  EXPECT_THAT(encoded, ElementsAreArray(expected));
+
+  // And now we roundtrip, decoding the message we just encoded.
+  std::string decoded;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
+  ParseBinary(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
+  EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ(json, decoded);
+}
+
+TEST(ParseBinaryTest, ParseEmptyBinaryMessage) {
+  // Just an indefinite length map that's empty (0xff = stop byte).
+  std::vector<uint8_t> in = {0xbf, 0xff};
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(in.data(), in.size()), json_writer.get());
+  EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ("{}", out);
+}
+
+TEST(ParseBinaryTest, ParseBinaryHelloWorld) {
+  std::vector<uint8_t> bytes;
+
+  bytes.push_back(0xbf);                    // start indef length map.
+  EncodeAsciiStringForTest("msg", &bytes);  // key: msg
+  // Now write the value, the familiar "Hello, 🌎." where the globe is expressed
+  // as two utf16 chars.
+  bytes.push_back(/*major type=*/2 << 5 | /*additional info=*/20);
+  for (uint8_t ch : std::array<uint8_t, 20>{
+           {'H', 0, 'e', 0, 'l',  0,    'l',  0,    'o', 0,
+            ',', 0, ' ', 0, 0x3c, 0xd8, 0x0e, 0xdf, '.', 0}})
+    bytes.push_back(ch);
+  bytes.push_back(0xff);  // stop byte
+
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ("{\"msg\":\"Hello, \\ud83c\\udf0e.\"}", out);
 }
 }  // namespace inspector_protocol

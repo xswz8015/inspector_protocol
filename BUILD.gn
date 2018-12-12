@@ -57,6 +57,7 @@ test("binary_encoding_test") {
   ]
   deps = [
     ":binary_encoding",
+    ":json_std_string_writer",
     ":linux_dev_platform",
     "//testing:gtest_main",
     "//third_party/gtest:gmock",
