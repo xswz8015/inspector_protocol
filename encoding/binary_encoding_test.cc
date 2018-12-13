@@ -429,4 +429,214 @@ TEST(ParseBinaryTest, ParseBinaryHelloWorld) {
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ("{\"msg\":\"Hello, \\ud83c\\udf0e.\"}", out);
 }
+
+TEST(ParseBinaryTest, NoInputError) {
+  std::vector<uint8_t> in = {};
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(in.data(), in.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_NO_INPUT, status.error);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, InvalidStartByteError) {
+  // Here we test that some actual json, which usually starts with {,
+  // is not considered a binary message. Binary messages must start with
+  // 0xbf, the indefinite length map start byte.
+  std::string json = "{\"msg\": \"Hello, world.\"}";
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(
+      span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
+      json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_START_BYTE, status.error);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, UnexpectedEofExpectedValueError) {
+  std::vector<uint8_t> bytes = {0xbf};      // The byte for starting a map.
+  EncodeAsciiStringForTest("key", &bytes);  // A key; so value would be next.
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_UNEXPECTED_EOF_EXPECTED_VALUE, status.error);
+  EXPECT_EQ(int64_t(bytes.size()), status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, UnexpectedEofInArrayError) {
+  std::vector<uint8_t> bytes = {0xbf};        // The byte for starting a map.
+  EncodeAsciiStringForTest("array", &bytes);  // A key; so value would be next.
+  bytes.push_back(0x9f);  // byte for indefinite length array start.
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_ARRAY, status.error);
+  EXPECT_EQ(int64_t(bytes.size()), status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, UnexpectedEofInMapError) {
+  std::vector<uint8_t> bytes = {0xbf};  // The byte for starting a map.
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_MAP, status.error);
+  EXPECT_EQ(1, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, InvalidMapKeyError) {
+  // The byte for starting a map, followed by a byte representing null.
+  // null is not a valid map key.
+  std::vector<uint8_t> bytes = {0xbf, 7 << 5 | 22};
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_MAP_KEY, status.error);
+  EXPECT_EQ(1, status.pos);
+  EXPECT_EQ("", out);
+}
+
+std::vector<uint8_t> MakeNestedBinary(int depth) {
+  std::vector<uint8_t> bytes;
+  for (int ii = 0; ii < depth; ++ii) {
+    bytes.push_back(0xbf);  // indef length map start
+    EncodeAsciiStringForTest("key", &bytes);
+  }
+  EncodeAsciiStringForTest("innermost_value", &bytes);
+  for (int ii = 0; ii < depth; ++ii)
+    bytes.push_back(0xff);  // stop byte, finishes map.
+  return bytes;
+}
+
+TEST(ParseBinaryTest, StackLimitExceededError) {
+  {  // Depth 3: no stack limit exceeded error and is easy to inspect.
+    std::vector<uint8_t> bytes = MakeNestedBinary(3);
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> json_writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    EXPECT_EQ(Error::OK, status.error);
+    EXPECT_EQ(Status::npos(), status.pos);
+    EXPECT_EQ("{\"key\":{\"key\":{\"key\":\"innermost_value\"}}}", out);
+  }
+  {  // Depth 1000: no stack limit exceeded.
+    std::vector<uint8_t> bytes = MakeNestedBinary(1000);
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> json_writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    EXPECT_EQ(Error::OK, status.error);
+    EXPECT_EQ(Status::npos(), status.pos);
+  }
+
+  // We just want to know the length of one opening map so we can compute
+  // where the error is encountered.
+  std::vector<uint8_t> opening_segment = {0xbf};
+  EncodeAsciiStringForTest("key", &opening_segment);
+
+  {  // Depth 1001: limit exceeded.
+    std::vector<uint8_t> bytes = MakeNestedBinary(1001);
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> json_writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    EXPECT_EQ(Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED, status.error);
+    EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
+  }
+  {  // Depth 1200: still limit exceeded, and at the same pos as for 1001
+    std::vector<uint8_t> bytes = MakeNestedBinary(1200);
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> json_writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    EXPECT_EQ(Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED, status.error);
+    EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
+  }
+}
+
+TEST(ParseBinaryTest, UnsupportedValueError) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeAsciiStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  bytes.push_back(6 << 5 | 5);  // tags aren't supported yet.
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_UNSUPPORTED_VALUE, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, InvalidString16Error) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeAsciiStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  // a BYTE_STRING of length 5 as value; since we interpret these as string16,
+  // it's going to be invalid as each character would need two bytes, but
+  // 5 isn't divisible by 2.
+  bytes.push_back(2 << 5 | 5);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_STRING16, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, InvalidDoubleError) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeAsciiStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  bytes.push_back(7 << 5 | 27);  // initial byte for double
+  // Just two garbage bytes, not enough to represent an actual double.
+  bytes.push_back(0x31);
+  bytes.push_back(0x23);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_DOUBLE, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, InvalidSignedError) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeAsciiStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  // uint64_t max is a perfectly fine value to encode as CBOR unsigned,
+  // but we don't support this since we only cover the int32_t range.
+  EncodeUnsigned(std::numeric_limits<uint64_t>::max(), &bytes);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_SIGNED, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
 }  // namespace inspector_protocol

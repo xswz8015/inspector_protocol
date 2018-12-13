@@ -52,4 +52,19 @@ TEST(JsonStdStringWriterTest, HelloWorld) {
       "\"bool\":false,\"null\":null},\"array\":[1,2,3]}",
       out);
 }
+
+TEST(JsonStdStringWriterTest, HandlesErrors) {
+  // When an error is sent via HandleError, it saves it in the provided
+  // status and clears the output.
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  writer->HandleObjectBegin();
+  writer->HandleString(UTF16String("msg1"));
+  writer->HandleError(Status{Error::JSON_PARSER_VALUE_EXPECTED, 42});
+  EXPECT_EQ(Error::JSON_PARSER_VALUE_EXPECTED, status.error);
+  EXPECT_EQ(42, status.pos);
+  EXPECT_EQ("", out);
+}
 }  // namespace inspector_protocol

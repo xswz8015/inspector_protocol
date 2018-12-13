@@ -395,7 +395,8 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
                  JsonParserHandler* out) {
   if (stack_depth > kStackLimit)
     return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
-  if (bytes->empty()) return Error::BINARY_ENCODING_UNEXPECTED_EOF;
+  if (bytes->empty())
+    return Error::BINARY_ENCODING_UNEXPECTED_EOF_EXPECTED_VALUE;
   // First we dispatch on the entire initial byte. Only when this doesn't
   // give satisfaction do we use the major types (first three bits)
   // to dispatch between a few more choices below.
@@ -460,8 +461,6 @@ Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
   assert(!bytes->empty());
   assert((*bytes)[0] == kInitialByteIndefiniteLengthArray);
 
-  if (stack_depth > kStackLimit)
-    return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
   *bytes = bytes->subspan(1);
   out->HandleArrayBegin();
   while (!bytes->empty()) {
@@ -471,10 +470,10 @@ Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
       return Error::OK;
     }
     // Parse value.
-    Error status = ParseValue(stack_depth + 1, bytes, out);
+    Error status = ParseValue(stack_depth, bytes, out);
     if (status != Error::OK) return status;
   }
-  return Error::BINARY_ENCODING_UNEXPECTED_EOF;
+  return Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_ARRAY;
 }
 
 // |bytes| must start with the indefinite length array byte, so basically,
@@ -485,8 +484,6 @@ Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
   assert(!bytes->empty());
   assert((*bytes)[0] == kInitialByteIndefiniteLengthMap);
 
-  if (stack_depth > kStackLimit)
-    return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
   *bytes = bytes->subspan(1);
   out->HandleObjectBegin();
   while (!bytes->empty()) {
@@ -501,21 +498,20 @@ Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
       return Error::BINARY_ENCODING_INVALID_MAP_KEY;
     out->HandleString(std::move(key));
     // Parse value.
-    Error status = ParseValue(stack_depth + 1, bytes, out);
+    Error status = ParseValue(stack_depth, bytes, out);
     if (status != Error::OK) return status;
   }
-  return Error::BINARY_ENCODING_UNEXPECTED_EOF;
+  return Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_MAP;
 }
 }  // namespace
 
 void ParseBinary(span<uint8_t> bytes, JsonParserHandler* json_out) {
   if (bytes.empty()) {
-    json_out->HandleError(Status{Error::BINARY_ENCODING_UNEXPECTED_EOF, 0});
+    json_out->HandleError(Status{Error::BINARY_ENCODING_NO_INPUT, 0});
     return;
   }
   if (bytes[0] != kInitialByteIndefiniteLengthMap) {
-    json_out->HandleError(
-        Status{Error::BINARY_ENCODING_INDEFINITE_LENGTH_MAP_START_EXPECTED, 0});
+    json_out->HandleError(Status{Error::BINARY_ENCODING_INVALID_START_BYTE, 0});
     return;
   }
   span<uint8_t> internal_bytes = bytes;

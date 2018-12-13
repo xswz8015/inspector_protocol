@@ -140,6 +140,7 @@ class Writer : public JsonParserHandler {
   void HandleError(Status error) override {
     assert(!error.ok());
     *status_ = error;
+    out_->clear();
   }
 
  private:
