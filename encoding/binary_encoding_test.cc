@@ -395,6 +395,30 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   EXPECT_EQ(json, decoded);
 }
 
+TEST(JsonCborRoundtrip, MoreRoundtripExamples) {
+  std::vector<std::string> examples = {
+      // Tests that after closing a nested objects, additional key/value pairs
+      // are considered.
+      "{\"foo\":{\"bar\":1},\"baz\":2}", "{\"foo\":[1,2,3],\"baz\":2}"};
+  for (const std::string& json : examples) {
+    SCOPED_TRACE(std::string("example: ") + json);
+    std::vector<uint8_t> encoded;
+    Status status;
+    std::unique_ptr<JsonParserHandler> encoder =
+        NewJsonToBinaryEncoder(&encoded, &status);
+    span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
+                           json.size());
+    parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
+    std::string decoded;
+    std::unique_ptr<JsonParserHandler> json_writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
+    ParseBinary(span<uint8_t>(encoded.data(), encoded.size()),
+                json_writer.get());
+    EXPECT_EQ(Error::OK, status.error);
+    EXPECT_EQ(json, decoded);
+  }
+}
+
 TEST(ParseBinaryTest, ParseEmptyBinaryMessage) {
   // Just an indefinite length map that's empty (0xff = stop byte).
   std::vector<uint8_t> in = {0xbf, 0xff};

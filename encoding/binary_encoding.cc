@@ -466,6 +466,7 @@ Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
   while (!bytes->empty()) {
     // Parse end of array.
     if ((*bytes)[0] == kStopByte) {
+      *bytes = bytes->subspan(1);
       out->HandleArrayEnd();
       return Error::OK;
     }
@@ -489,6 +490,7 @@ Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
   while (!bytes->empty()) {
     // Parse end of map.
     if ((*bytes)[0] == kStopByte) {
+      *bytes = bytes->subspan(1);
       out->HandleObjectEnd();
       return Error::OK;
     }
