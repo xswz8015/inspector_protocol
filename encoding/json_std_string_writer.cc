@@ -115,8 +115,21 @@ class Writer : public JsonParserHandler {
   void HandleDouble(double value) override {
     if (!status_->ok()) return;
     state_.top().StartElement(out_);
-    std::unique_ptr<char[]> chars = platform_->DToStr(value);
-    out_->append(&chars[0]);
+    std::unique_ptr<char[]> str_value = platform_->DToStr(value);
+
+    // DToStr may fail to emit a 0 before the decimal dot. E.g. this is
+    // the case in base::NumberToString in Chromium (which is based on
+    // dmg_fp). So, much like
+    // https://cs.chromium.org/chromium/src/base/json/json_writer.cc
+    // we probe for this and emit the leading 0 anyway if necessary.
+    const char* chars = str_value.get();
+    if (chars[0] == '.') {
+      out_->append("0");
+    } else if (chars[0] == '-' && chars[1] == '.') {
+      out_->append("-0");
+      ++chars;
+    }
+    out_->append(chars);
   }
 
   void HandleInt(int32_t value) override {

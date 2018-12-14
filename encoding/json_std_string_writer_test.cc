@@ -67,4 +67,41 @@ TEST(JsonStdStringWriterTest, HandlesErrors) {
   EXPECT_EQ(42, status.pos);
   EXPECT_EQ("", out);
 }
+
+// We'd use Gmock but unfortunately it only handles copyable return types.
+class MockPlatform : public Platform {
+ public:
+  // Not implemented.
+  bool StrToD(const char* str, double* result) const override { return false; }
+
+  // A map with pre-registered responses for DToSTr.
+  std::map<double, std::string> dtostr_responses;
+
+  std::unique_ptr<char[]> DToStr(double value) const override {
+    auto it = dtostr_responses.find(value);
+    assert(it != dtostr_responses.end());
+    const std::string& str = it->second;
+    std::unique_ptr<char[]> response(new char[str.size() + 1]);
+    memcpy(response.get(), str.c_str(), str.size() + 1);
+    return response;
+  }
+};
+
+TEST(JsonStdStringWriterTest, DoubleToString) {
+  // This "broken" platform responds without the leading 0 before the
+  // decimal dot, so it'd be invalid JSON.
+  MockPlatform platform;
+  platform.dtostr_responses[.1] = ".1";
+  platform.dtostr_responses[-.7] = "-.7";
+
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> writer =
+      NewJsonWriter(&platform, &out, &status);
+  writer->HandleArrayBegin();
+  writer->HandleDouble(.1);
+  writer->HandleDouble(-.7);
+  writer->HandleArrayEnd();
+  EXPECT_EQ("[0.1,-0.7]", out);
+}
 }  // namespace inspector_protocol
