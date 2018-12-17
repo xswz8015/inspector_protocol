@@ -315,6 +315,62 @@ class JsonParser {
     output->reserve(end - start);
     while (start < end) {
       uint16_t c = *start++;
+      // If the |Char| we're dealing with is really a byte, then
+      // we have utf8 here, and we need to check for multibyte characters
+      // and transcode them to utf16 (either one or two utf16 chars).
+      if (sizeof(Char) == sizeof(uint8_t) && c >= 0x7f) {
+        // Inspect the leading byte to figure out how long the utf8
+        // byte sequence is; while doing this initialize |codepoint|
+        // with the first few bits.
+        // See table in: https://en.wikipedia.org/wiki/UTF-8
+        // byte one is 110x xxxx -> 2 byte utf8 sequence
+        // byte one is 1110 xxxx -> 3 byte utf8 sequence
+        // byte one is 1111 0xxx -> 4 byte utf8 sequence
+        uint32_t codepoint;
+        int num_bytes_left;
+        if ((c & 0xe0) == 0xc0) {  // 2 byte utf8 sequence
+          num_bytes_left = 1;
+          codepoint = c & 0x1f;
+        } else if ((c & 0xf0) == 0xe0) {  // 3 byte utf8 sequence
+          num_bytes_left = 2;
+          codepoint = c & 0x0f;
+        } else if ((c & 0xf8) == 0xf0) {  // 4 byte utf8 sequence
+          codepoint = c & 0x07;
+          num_bytes_left = 3;
+        } else {
+          return false;  // invalid leading byte
+        }
+
+        // If we have enough bytes in our inpput, decode the remaining ones
+        // belonging to this Unicode character into |codepoint|.
+        if (start + num_bytes_left > end) return false;
+        while (num_bytes_left > 0) {
+          c = *start++;
+          --num_bytes_left;
+          // Check the next byte is a continuation byte, that is 10xx xxxx.
+          if ((c & 0xc0) != 0x80) return false;
+          codepoint = (codepoint << 6) | (c & 0x3f);
+        }
+
+        // Disallow overlong encodings for ascii characters, as these
+        // would include " and other characters significant to JSON
+        // string termination / control.
+        if (codepoint < 0x7f) return false;
+        // Invalid in UTF8, and can't be represented in UTF16 anyway.
+        if (codepoint > 0x10ffff) return false;
+
+        // So, now we transcode to UTF16,
+        // using the math described at https://en.wikipedia.org/wiki/UTF-16,
+        // for either one or two 16 bit characters.
+        if (codepoint < 0xffff) {
+          output->push_back(codepoint);
+          continue;
+        }
+        codepoint -= 0x10000;
+        output->push_back((codepoint >> 10) + 0xd800);    // high surrogate
+        output->push_back((codepoint & 0x3ff) + 0xdc00);  // low surrogate
+        continue;
+      }
       if ('\\' != c) {
         output->push_back(c);
         continue;

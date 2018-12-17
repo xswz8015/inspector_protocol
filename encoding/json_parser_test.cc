@@ -145,6 +145,41 @@ TEST_F(JsonParserTest, Unicode_ParseUtf16) {
       log_.str());
 }
 
+TEST_F(JsonParserTest, Unicode_ParseUtf8) {
+  // Used below:
+  // гласность - example for 2 byte utf8, Russian word "glasnost"
+  // 屋 - example for 3 byte utf8, Chinese word for "house"
+  // 🌎 - example for 4 byte utf8: 0xF0 0x9F 0x8C 0x8E; utf16: 0xD83C 0xDF0E.
+  // 🌙 - example for escapes: utf8: 0xF0 0x9F 0x8C 0x99; utf16: 0xD83C 0xDF19.
+
+  // We provide the moon with json escape, but the earth as utf8 input.
+  // Either way they arrive as utf8 (after decoding in log_.str()).
+  std::string json =
+      "{"
+      "\"escapes\": \"\\uD83C\\uDF19\","
+      "\"2 byte\":\"гласность\","
+      "\"3 byte\":\"屋\","
+      "\"4 byte\":\"🌎\""
+      "}";
+  parseJSONChars(
+      GetLinuxDevPlatform(),
+      span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
+      &log_);
+  EXPECT_TRUE(log_.status().ok());
+  EXPECT_EQ(
+      "object begin\n"
+      "string: escapes\n"
+      "string: 🌙\n"
+      "string: 2 byte\n"
+      "string: гласность\n"
+      "string: 3 byte\n"
+      "string: 屋\n"
+      "string: 4 byte\n"
+      "string: 🌎\n"
+      "object end\n",
+      log_.str());
+}
+
 TEST_F(JsonParserTest, UnprocessedInputRemainsError) {
   // Trailing junk after the valid JSON.
   std::string json = "{\"foo\": 3.1415} junk";
