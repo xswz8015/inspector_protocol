@@ -295,6 +295,24 @@ bool DecodeUTF16String(span<uint8_t>* bytes, std::vector<uint16_t>* str) {
   return true;
 }
 
+void EncodeUTF8String(span<uint8_t> in, std::vector<uint8_t>* out) {
+  WriteItemStart(MajorType::STRING, static_cast<uint64_t>(in.size_bytes()),
+                 out);
+  out->insert(out->end(), in.begin(), in.end());
+}
+
+bool DecodeUTF8String(span<uint8_t>* bytes, std::vector<uint8_t>* str) {
+  MajorType type;
+  uint64_t num_bytes;
+  span<uint8_t> internal_bytes = *bytes;  // only written upon success
+  if (!ReadItemStart(&internal_bytes, &type, &num_bytes)) return false;
+  if (type != MajorType::STRING) return false;
+  if (static_cast<size_t>(internal_bytes.size()) < num_bytes) return false;
+  str->insert(str->end(), internal_bytes.begin(), internal_bytes.end());
+  *bytes = internal_bytes.subspan(num_bytes);
+  return true;
+}
+
 // A double is encoded with a specific initial byte
 // (kInitialByteForDouble) plus the 64 bits of payload for its value.
 constexpr int kEncodedDoubleSize = 1 + sizeof(uint64_t);

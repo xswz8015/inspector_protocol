@@ -278,6 +278,30 @@ TEST(EncodeDecodeUTF16StringTest, ErrorCases) {
   }
 }
 
+TEST(EncodeDecode8StringTest, RoundtripsHelloWorld) {
+  // This roundtrips the hello world message which is given here in utf8
+  // characters. 🌎 is a four byte utf8 character.
+  std::string utf8_msg = "Hello, 🌎.";
+  std::vector<uint8_t> msg(utf8_msg.begin(), utf8_msg.end());
+  std::vector<uint8_t> encoded;
+  EncodeUTF8String(span<uint8_t>(msg.data(), msg.size()), &encoded);
+  // This will be encoded as BYTE_STRING of length 20, so the 20 is encoded in
+  // the additional info part of the initial byte. Payload is two bytes for each
+  // UTF16 character.
+  uint8_t initial_byte = /*major type=*/3 << 5 | /*additional info=*/12;
+  std::array<uint8_t, 13> encoded_expected = {{initial_byte, 'H', 'e', 'l', 'l',
+                                               'o', ',', ' ', 0xF0, 0x9f, 0x8c,
+                                               0x8e, '.'}};
+  EXPECT_THAT(encoded, ElementsAreArray(encoded_expected));
+
+  // Now decode to complete the roundtrip.
+  std::vector<uint8_t> decoded;
+  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
+  EXPECT_TRUE(DecodeUTF8String(&encoded_bytes, &decoded));
+  EXPECT_THAT(decoded, ElementsAreArray(msg));
+  EXPECT_TRUE(encoded_bytes.empty());
+}
+
 TEST(EncodeDecodeDoubleTest, RoundtripsWikipediaExample) {
   // https://en.wikipedia.org/wiki/Double-precision_floating-point_format
   // provides the example of a hex representation 3FD5 5555 5555 5555, which

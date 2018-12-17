@@ -44,6 +44,13 @@ void EncodeUTF16String(span<uint16_t> in, std::vector<uint8_t>* out);
 // successful.
 bool DecodeUTF16String(span<uint8_t>* bytes, std::vector<uint16_t>* str);
 
+// Encodes a UTF8 string |in| as STRING (major type 3).
+void EncodeUTF8String(span<uint8_t> in, std::vector<uint8_t>* out);
+// Given an encoded STRING (major type 3) with definitive length at the
+// beginning of |bytes|, extracts the bytes into |str|. Updates |bytes|
+// to the first byte after the encoded byte string. Returns true iff successful.
+bool DecodeUTF8String(span<uint8_t>* bytes, std::vector<uint8_t>* str);
+
 // Encodes / decodes a double as Major type 7 (SIMPLE_VALUE),
 // with additional info = 27, followed by 8 bytes in big endian.
 void EncodeDouble(double value, std::vector<uint8_t>* out);
