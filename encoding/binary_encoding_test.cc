@@ -350,13 +350,33 @@ TEST(EncodeDecodeDoubleTest, RoundtripsAdditionalExamples) {
   }
 }
 
-void EncodeAsciiStringForTest(const std::string& key,
-                              std::vector<uint8_t>* out) {
-  // TODO(johannes): Later, we'll want to support utf8 strings for such keys.
-  // But for now, utf16 is all we've got.
+void EncodeSevenBitStringForTest(const std::string& key,
+                                 std::vector<uint8_t>* out) {
+  for (char c : key) assert(c > 0);
+  EncodeUTF8String(
+      span<uint8_t>(reinterpret_cast<const uint8_t*>(key.data()), key.size()),
+      out);
+}
+
+TEST(JsonToCborEncoderTest, SevenBitStrings) {
+  // When a string can be represented as 7 bit ascii, the encoder will use the
+  // STRING (major Type 2) type, so the actual characters end up as bytes on the
+  // wire.
+  std::vector<uint8_t> encoded;
+  Status status;
+  std::unique_ptr<JsonParserHandler> encoder =
+      NewJsonToBinaryEncoder(&encoded, &status);
   std::vector<uint16_t> utf16;
-  for (char c : key) utf16.push_back(static_cast<uint8_t>(c));
-  EncodeUTF16String(span<uint16_t>(utf16.data(), utf16.size()), out);
+  utf16.push_back('f');
+  utf16.push_back('o');
+  utf16.push_back('o');
+  encoder->HandleString(utf16);
+  EXPECT_EQ(Error::OK, status.error);
+  // Here we assert that indeed, seven bit strings are represented as
+  // bytes on the wire, "foo" is just "foo".
+  EXPECT_THAT(encoded,
+              ElementsAreArray(std::array<uint8_t, 4>{
+                  {/*major type 3*/ 3 << 5 | /*length*/ 3, 'f', 'o', 'o'}}));
 }
 
 TEST(JsonCborRoundtrip, EncodingDecoding) {
@@ -381,7 +401,7 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
   std::vector<uint8_t> expected;
   expected.push_back(0xbf);  // indef length map start
-  EncodeAsciiStringForTest("string", &expected);
+  EncodeSevenBitStringForTest("string", &expected);
   // This is followed by the encoded string for "Hello, 🌎."
   // So, it's the same bytes that we tested above in
   // EncodeDecodeUTF16StringTest.RoundtripsHelloWorld.
@@ -390,17 +410,17 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
            {'H', 0, 'e', 0, 'l',  0,    'l',  0,    'o', 0,
             ',', 0, ' ', 0, 0x3c, 0xd8, 0x0e, 0xdf, '.', 0}})
     expected.push_back(ch);
-  EncodeAsciiStringForTest("double", &expected);
+  EncodeSevenBitStringForTest("double", &expected);
   EncodeDouble(3.1415, &expected);
-  EncodeAsciiStringForTest("int", &expected);
+  EncodeSevenBitStringForTest("int", &expected);
   EncodeUnsigned(1, &expected);
-  EncodeAsciiStringForTest("negative int", &expected);
+  EncodeSevenBitStringForTest("negative int", &expected);
   internal::EncodeNegative(-1, &expected);
-  EncodeAsciiStringForTest("bool", &expected);
+  EncodeSevenBitStringForTest("bool", &expected);
   expected.push_back(7 << 5 | 21);  // RFC 7049 Section 2.3, Table 2: true
-  EncodeAsciiStringForTest("null", &expected);
+  EncodeSevenBitStringForTest("null", &expected);
   expected.push_back(7 << 5 | 22);  // RFC 7049 Section 2.3, Table 2: null
-  EncodeAsciiStringForTest("array", &expected);
+  EncodeSevenBitStringForTest("array", &expected);
   expected.push_back(0x9f);  // RFC 7049 Section 2.2.1, indef length array start
   expected.push_back(1);     // Three UNSIGNED values (easy since Major Type 0)
   expected.push_back(2);
@@ -459,7 +479,7 @@ TEST(ParseBinaryTest, ParseBinaryHelloWorld) {
   std::vector<uint8_t> bytes;
 
   bytes.push_back(0xbf);                    // start indef length map.
-  EncodeAsciiStringForTest("msg", &bytes);  // key: msg
+  EncodeSevenBitStringForTest("msg", &bytes);  // key: msg
   // Now write the value, the familiar "Hello, 🌎." where the globe is expressed
   // as two utf16 chars.
   bytes.push_back(/*major type=*/2 << 5 | /*additional info=*/20);
@@ -507,7 +527,7 @@ TEST(ParseBinaryTest, InvalidStartByteError) {
 
 TEST(ParseBinaryTest, UnexpectedEofExpectedValueError) {
   std::vector<uint8_t> bytes = {0xbf};      // The byte for starting a map.
-  EncodeAsciiStringForTest("key", &bytes);  // A key; so value would be next.
+  EncodeSevenBitStringForTest("key", &bytes);  // A key; so value would be next.
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
@@ -520,7 +540,8 @@ TEST(ParseBinaryTest, UnexpectedEofExpectedValueError) {
 
 TEST(ParseBinaryTest, UnexpectedEofInArrayError) {
   std::vector<uint8_t> bytes = {0xbf};        // The byte for starting a map.
-  EncodeAsciiStringForTest("array", &bytes);  // A key; so value would be next.
+  EncodeSevenBitStringForTest("array",
+                              &bytes);  // A key; so value would be next.
   bytes.push_back(0x9f);  // byte for indefinite length array start.
   std::string out;
   Status status;
@@ -562,9 +583,9 @@ std::vector<uint8_t> MakeNestedBinary(int depth) {
   std::vector<uint8_t> bytes;
   for (int ii = 0; ii < depth; ++ii) {
     bytes.push_back(0xbf);  // indef length map start
-    EncodeAsciiStringForTest("key", &bytes);
+    EncodeSevenBitStringForTest("key", &bytes);
   }
-  EncodeAsciiStringForTest("innermost_value", &bytes);
+  EncodeSevenBitStringForTest("innermost_value", &bytes);
   for (int ii = 0; ii < depth; ++ii)
     bytes.push_back(0xff);  // stop byte, finishes map.
   return bytes;
@@ -596,7 +617,7 @@ TEST(ParseBinaryTest, StackLimitExceededError) {
   // We just want to know the length of one opening map so we can compute
   // where the error is encountered.
   std::vector<uint8_t> opening_segment = {0xbf};
-  EncodeAsciiStringForTest("key", &opening_segment);
+  EncodeSevenBitStringForTest("key", &opening_segment);
 
   {  // Depth 1001: limit exceeded.
     std::vector<uint8_t> bytes = MakeNestedBinary(1001);
@@ -622,7 +643,7 @@ TEST(ParseBinaryTest, StackLimitExceededError) {
 
 TEST(ParseBinaryTest, UnsupportedValueError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
-  EncodeAsciiStringForTest("key", &bytes);
+  EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   bytes.push_back(6 << 5 | 5);  // tags aren't supported yet.
   std::string out;
@@ -637,12 +658,13 @@ TEST(ParseBinaryTest, UnsupportedValueError) {
 
 TEST(ParseBinaryTest, InvalidString16Error) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
-  EncodeAsciiStringForTest("key", &bytes);
+  EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   // a BYTE_STRING of length 5 as value; since we interpret these as string16,
   // it's going to be invalid as each character would need two bytes, but
   // 5 isn't divisible by 2.
   bytes.push_back(2 << 5 | 5);
+  for (int ii = 0; ii < 5; ++ii) bytes.push_back(' ');
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
@@ -653,9 +675,44 @@ TEST(ParseBinaryTest, InvalidString16Error) {
   EXPECT_EQ("", out);
 }
 
+TEST(ParseBinaryTest, InvalidString8Error) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeSevenBitStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  // a STRING of length 5 as value, but we're at the end of the bytes array
+  // so it can't be decoded successfully.
+  bytes.push_back(3 << 5 | 5);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_STRING8, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseBinaryTest, String8MustBe7BitError) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeSevenBitStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  // a STRING of length 5 as value, with a payload that has bytes outside
+  // 7 bit (> 0x7f).
+  bytes.push_back(3 << 5 | 5);
+  for (int ii = 0; ii < 5; ++ii) bytes.push_back(0xf0);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::BINARY_ENCODING_STRING8_MUST_BE_7BIT, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
 TEST(ParseBinaryTest, InvalidDoubleError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
-  EncodeAsciiStringForTest("key", &bytes);
+  EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   bytes.push_back(7 << 5 | 27);  // initial byte for double
   // Just two garbage bytes, not enough to represent an actual double.
@@ -673,7 +730,7 @@ TEST(ParseBinaryTest, InvalidDoubleError) {
 
 TEST(ParseBinaryTest, InvalidSignedError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
-  EncodeAsciiStringForTest("key", &bytes);
+  EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   // uint64_t max is a perfectly fine value to encode as CBOR unsigned,
   // but we don't support this since we only cover the int32_t range.

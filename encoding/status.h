@@ -9,7 +9,6 @@
 
 namespace inspector_protocol {
 // Error codes.
-// Next available: 14
 enum class Error {
   OK = 0,
   // JSON parsing errors - json_parser.{h,cc}.
@@ -36,8 +35,10 @@ enum class Error {
   BINARY_ENCODING_STACK_LIMIT_EXCEEDED = 0x15,
   BINARY_ENCODING_UNSUPPORTED_VALUE = 0x16,
   BINARY_ENCODING_INVALID_STRING16 = 0x17,
-  BINARY_ENCODING_INVALID_DOUBLE = 0x18,
-  BINARY_ENCODING_INVALID_SIGNED = 0x19,
+  BINARY_ENCODING_INVALID_STRING8 = 0x18,
+  BINARY_ENCODING_STRING8_MUST_BE_7BIT = 0x19,
+  BINARY_ENCODING_INVALID_DOUBLE = 0x1a,
+  BINARY_ENCODING_INVALID_SIGNED = 0x1b,
 };
 
 // A status value with position that can be copied. The default status

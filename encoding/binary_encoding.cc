@@ -305,7 +305,8 @@ bool DecodeUTF8String(span<uint8_t>* bytes, std::vector<uint8_t>* str) {
   if (!ReadItemStart(&internal_bytes, &type, &num_bytes)) return false;
   if (type != MajorType::STRING) return false;
   if (static_cast<size_t>(internal_bytes.size()) < num_bytes) return false;
-  str->insert(str->end(), internal_bytes.begin(), internal_bytes.end());
+  str->insert(str->end(), internal_bytes.begin(),
+              internal_bytes.begin() + num_bytes);
   *bytes = internal_bytes.subspan(num_bytes);
   return true;
 }
@@ -361,7 +362,16 @@ class JsonToBinaryEncoder : public JsonParserHandler {
   void HandleArrayEnd() override { out_->push_back(kStopByte); };
 
   void HandleString(std::vector<uint16_t> chars) override {
-    EncodeUTF16String(span<uint16_t>(chars.data(), chars.size()), out_);
+    for (uint16_t ch : chars) {
+      if (ch >= 0x7f) {
+        // If there's at least one non-7bit character, we encode as UTF16.
+        EncodeUTF16String(span<uint16_t>(chars.data(), chars.size()), out_);
+        return;
+      }
+    }
+    std::vector<uint8_t> sevenbit_chars(chars.begin(), chars.end());
+    EncodeUTF8String(
+        span<uint8_t>(sevenbit_chars.data(), sevenbit_chars.size()), out_);
   }
 
   void HandleDouble(double value) override { EncodeDouble(value, out_); };
@@ -404,6 +414,33 @@ Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
                  JsonParserHandler* out);
 Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
                  JsonParserHandler* out);
+
+Error ParseUTF16String(span<uint8_t>* bytes, JsonParserHandler* out) {
+  std::vector<uint16_t> value;
+  if (!DecodeUTF16String(bytes, &value))
+    return Error::BINARY_ENCODING_INVALID_STRING16;
+  out->HandleString(std::move(value));
+  return Error::OK;
+}
+
+// For now this method only covers US-ASCII. Later, we may allow UTF8.
+Error ParseASCIIString(span<uint8_t>* bytes, JsonParserHandler* out) {
+  std::vector<uint8_t> value;
+  span<uint8_t> internal_bytes = *bytes;
+  if (!DecodeUTF8String(&internal_bytes, &value))
+    return Error::BINARY_ENCODING_INVALID_STRING8;
+  std::vector<uint16_t> value16;
+  value16.reserve(value.size());
+  for (uint8_t ch : value) {
+    // We only accept us-ascii (7 bit) strings here. Other strings must
+    // be encoded with 16 bit (the BYTE_STRING case).
+    if (ch >= 0x7f) return Error::BINARY_ENCODING_STRING8_MUST_BE_7BIT;
+    value16.push_back(ch);
+  }
+  *bytes = internal_bytes;
+  out->HandleString(std::move(value16));
+  return Error::OK;
+}
 
 Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
                  JsonParserHandler* out) {
@@ -450,14 +487,10 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
       out->HandleInt(value);
       return Error::OK;
     }
-    case uint8_t(MajorType::BYTE_STRING): {
-      std::vector<uint16_t> value;
-      if (!DecodeUTF16String(bytes, &value))
-        return Error::BINARY_ENCODING_INVALID_STRING16;
-      out->HandleString(std::move(value));
-      return Error::OK;
-    }
-    case uint8_t(MajorType::STRING):        // utf8, todo
+    case uint8_t(MajorType::BYTE_STRING):
+      return ParseUTF16String(bytes, out);
+    case uint8_t(MajorType::STRING):
+      return ParseASCIIString(bytes, out);
     case uint8_t(MajorType::ARRAY):         // indef length case handled above
     case uint8_t(MajorType::MAP):           // indef length case handled above
     case uint8_t(MajorType::TAG):           // todo
@@ -509,10 +542,16 @@ Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
       return Error::OK;
     }
     // Parse key.
-    std::vector<uint16_t> key;
-    if (!DecodeUTF16String(bytes, &key))
+    if (((*bytes)[0] >> kMajorTypeBitShift) == int(MajorType::STRING)) {
+      Error error = ParseASCIIString(bytes, out);
+      if (error != Error::OK) return error;
+    } else if (((*bytes)[0] >> kMajorTypeBitShift) ==
+               int(MajorType::BYTE_STRING)) {
+      Error error = ParseUTF16String(bytes, out);
+      if (error != Error::OK) return error;
+    } else {
       return Error::BINARY_ENCODING_INVALID_MAP_KEY;
-    out->HandleString(std::move(key));
+    }
     // Parse value.
     Error status = ParseValue(stack_depth, bytes, out);
     if (status != Error::OK) return status;
