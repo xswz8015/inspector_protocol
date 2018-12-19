@@ -93,27 +93,23 @@ void WriteItemStart(MajorType type, uint64_t value,
   }
   if (value <= std::numeric_limits<uint8_t>::max()) {
     // Values 24-255 are encoded with one initial byte, followed by the value.
-    encoded->reserve(encoded->size() + 1 + sizeof(uint8_t));
     encoded->push_back(EncodeInitialByte(type, kAdditionalInformation1Byte));
     encoded->push_back(value);
     return;
   }
   if (value <= std::numeric_limits<uint16_t>::max()) {
     // Values 256-65535: 1 initial byte + 2 bytes payload.
-    encoded->reserve(encoded->size() + 1 + sizeof(uint16_t));
     encoded->push_back(EncodeInitialByte(type, kAdditionalInformation2Bytes));
     WriteBytesMostSignificantByteFirst<uint16_t>(value, encoded);
     return;
   }
   if (value <= std::numeric_limits<uint32_t>::max()) {
     // 32 bit uint: 1 initial byte + 4 bytes payload.
-    encoded->reserve(encoded->size() + 1 + sizeof(uint32_t));
     encoded->push_back(EncodeInitialByte(type, kAdditionalInformation4Bytes));
     WriteBytesMostSignificantByteFirst<uint32_t>(value, encoded);
     return;
   }
   // 64 bit uint: 1 initial byte + 8 bytes payload.
-  encoded->reserve(encoded->size() + 1 + sizeof(uint64_t));
   encoded->push_back(EncodeInitialByte(type, kAdditionalInformation8Bytes));
   WriteBytesMostSignificantByteFirst<uint64_t>(value, encoded);
 }
@@ -206,7 +202,8 @@ namespace internal {
 // Encodes |value| as NEGATIVE (major type 1). |value| must be negative.
 void EncodeNegative(int64_t value, std::vector<uint8_t>* out) {
   assert(value < 0);
-  WriteItemStart(MajorType::NEGATIVE, static_cast<uint64_t>(-(value + 1)), out);
+  uint64_t representation = static_cast<uint64_t>(-(value + 1));
+  WriteItemStart(MajorType::NEGATIVE, representation, out);
 }
 
 // Decodes |value| from |bytes|, assuming that it's encoded as NEGATIVE.
@@ -258,8 +255,8 @@ bool DecodeSigned(span<uint8_t>* bytes, int32_t* value) {
 }
 
 void EncodeUTF16String(span<uint16_t> in, std::vector<uint8_t>* out) {
-  WriteItemStart(MajorType::BYTE_STRING, static_cast<uint64_t>(in.size_bytes()),
-                 out);
+  uint64_t byte_length = static_cast<uint64_t>(in.size_bytes());
+  WriteItemStart(MajorType::BYTE_STRING, byte_length, out);
   // When emitting UTF16 characters, we always write the least significant byte
   // first; this is because it's the native representation for X86.
   // TODO(johannes): Implement a more efficient thing here later, e.g.
@@ -320,7 +317,6 @@ constexpr int kEncodedDoubleSize = 1 + sizeof(uint64_t);
 void EncodeDouble(double value, std::vector<uint8_t>* out) {
   // The additional_info=27 indicates 64 bits for the double follow.
   // See RFC 7049 Section 2.3, Table 1.
-  out->reserve(out->size() + kEncodedDoubleSize);
   out->push_back(kInitialByteForDouble);
   union {
     double from_double;
