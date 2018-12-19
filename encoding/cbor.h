@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef INSPECTOR_PROTOCOL_ENCODING_BINARY_ENCODING_H_
-#define INSPECTOR_PROTOCOL_ENCODING_BINARY_ENCODING_H_
+#ifndef INSPECTOR_PROTOCOL_ENCODING_CBOR_H_
+#define INSPECTOR_PROTOCOL_ENCODING_CBOR_H_
 
 #include <cstdint>
 #include <memory>
@@ -14,7 +14,16 @@
 
 namespace inspector_protocol {
 // The binary encoding for the inspector protocol follows the CBOR specification
-// (RFC 7049).
+// (RFC 7049). Additional constraints:
+// - Only indefinite length maps and arrays are supported.
+// - At the top level, a message must be an indefinite length map.
+// - For scalars, we support only the int32_t range, encoded as
+//   UNSIGNED/NEGATIVE (major types 0 / 1).
+// - UTF16 strings, including with unbalanced surrogate pairs, are encoded
+//   as CBOR BYTE_STRING (major type 2). For such strings, the number of
+//   bytes encoded must be even.
+// - UTF8 strings (major type 3) may only have ASCII characters
+//   (7 bit US-ASCII).
 
 // Encodes |value| as UNSIGNED (major type 0).
 void EncodeUnsigned(uint64_t value, std::vector<uint8_t>* out);
@@ -56,17 +65,17 @@ bool DecodeUTF8String(span<uint8_t>* bytes, std::vector<uint8_t>* str);
 void EncodeDouble(double value, std::vector<uint8_t>* out);
 bool DecodeDouble(span<uint8_t>* bytes, double* value);
 
-// This can be used to convert from JSON to this binary encoding, by passing the
+// This can be used to convert from JSON to CBOR, by passing the
 // return value to the routines in json_parser.h.  The handler will encode into
 // |out|, and iff an error occurs it will set |status| to an error and clear
 // |out|. Otherwise, |status.ok()| will be |true|.
-std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
+std::unique_ptr<JsonParserHandler> NewJsonToCBOREncoder(
     std::vector<uint8_t>* out, Status* status);
 
-// Parses a binary encoded message from |bytes|, sending JSON events to
+// Parses a CBOR encoded message from |bytes|, sending JSON events to
 // |json_out|. If an error occurs, sends |out->HandleError|, and parsing stops.
 // The client is responsible for discarding the already received information in
 // that case.
-void ParseBinary(span<uint8_t> bytes, JsonParserHandler* json_out);
+void ParseCBOR(span<uint8_t> bytes, JsonParserHandler* json_out);
 }  // namespace inspector_protocol
-#endif  // INSPECTOR_PROTOCOL_ENCODING_BINARY_ENCODING_H_
+#endif  // INSPECTOR_PROTOCOL_ENCODING_CBOR_H_

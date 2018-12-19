@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "binary_encoding.h"
+#include "cbor.h"
 
 #include <cassert>
 #include <limits>
@@ -69,7 +69,7 @@ static constexpr uint8_t kInitialByteIndefiniteLengthMap =
 static constexpr uint8_t kStopByte =
     EncodeInitialByte(MajorType::SIMPLE_VALUE, 31);
 
-// When parsing binary (CBOR), we limit recursion depth for objects and arrays
+// When parsing CBOR, we limit recursion depth for objects and arrays
 // to this constant.
 static constexpr int kStackLimit = 1000;
 
@@ -342,9 +342,9 @@ bool DecodeDouble(span<uint8_t>* bytes, double* value) {
 }
 
 namespace {
-class JsonToBinaryEncoder : public JsonParserHandler {
+class JsonToCBOREncoder : public JsonParserHandler {
  public:
-  JsonToBinaryEncoder(std::vector<uint8_t>* out, Status* status)
+  JsonToCBOREncoder(std::vector<uint8_t>* out, Status* status)
       : out_(out), status_(status) {
     *status_ = Status();
   }
@@ -400,13 +400,13 @@ class JsonToBinaryEncoder : public JsonParserHandler {
 };
 }  // namespace
 
-std::unique_ptr<JsonParserHandler> NewJsonToBinaryEncoder(
+std::unique_ptr<JsonParserHandler> NewJsonToCBOREncoder(
     std::vector<uint8_t>* out, Status* status) {
-  return std::make_unique<JsonToBinaryEncoder>(out, status);
+  return std::make_unique<JsonToCBOREncoder>(out, status);
 }
 
 namespace {
-// Below are three parsing routines for CBOR / binary, which cover enough
+// Below are three parsing routines for CBOR, which cover enough
 // to roundtrip JSON messages.
 Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
                JsonParserHandler* out);
@@ -417,8 +417,7 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
 
 Error ParseUTF16String(span<uint8_t>* bytes, JsonParserHandler* out) {
   std::vector<uint16_t> value;
-  if (!DecodeUTF16String(bytes, &value))
-    return Error::BINARY_ENCODING_INVALID_STRING16;
+  if (!DecodeUTF16String(bytes, &value)) return Error::CBOR_INVALID_STRING16;
   out->HandleString(std::move(value));
   return Error::OK;
 }
@@ -428,13 +427,13 @@ Error ParseASCIIString(span<uint8_t>* bytes, JsonParserHandler* out) {
   std::vector<uint8_t> value;
   span<uint8_t> internal_bytes = *bytes;
   if (!DecodeUTF8String(&internal_bytes, &value))
-    return Error::BINARY_ENCODING_INVALID_STRING8;
+    return Error::CBOR_INVALID_STRING8;
   std::vector<uint16_t> value16;
   value16.reserve(value.size());
   for (uint8_t ch : value) {
     // We only accept us-ascii (7 bit) strings here. Other strings must
     // be encoded with 16 bit (the BYTE_STRING case).
-    if (ch >= 0x7f) return Error::BINARY_ENCODING_STRING8_MUST_BE_7BIT;
+    if (ch >= 0x7f) return Error::CBOR_STRING8_MUST_BE_7BIT;
     value16.push_back(ch);
   }
   *bytes = internal_bytes;
@@ -444,10 +443,8 @@ Error ParseASCIIString(span<uint8_t>* bytes, JsonParserHandler* out) {
 
 Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
                  JsonParserHandler* out) {
-  if (stack_depth > kStackLimit)
-    return Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED;
-  if (bytes->empty())
-    return Error::BINARY_ENCODING_UNEXPECTED_EOF_EXPECTED_VALUE;
+  if (stack_depth > kStackLimit) return Error::CBOR_STACK_LIMIT_EXCEEDED;
+  if (bytes->empty()) return Error::CBOR_UNEXPECTED_EOF_EXPECTED_VALUE;
   // First we dispatch on the entire initial byte. Only when this doesn't
   // give satisfaction do we use the major types (first three bits)
   // to dispatch between a few more choices below.
@@ -466,8 +463,7 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
       return Error::OK;
     case kInitialByteForDouble: {
       double value;
-      if (!DecodeDouble(bytes, &value))
-        return Error::BINARY_ENCODING_INVALID_DOUBLE;
+      if (!DecodeDouble(bytes, &value)) return Error::CBOR_INVALID_DOUBLE;
       out->HandleDouble(value);
       return Error::OK;
     }
@@ -482,8 +478,7 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
     case uint8_t(MajorType::UNSIGNED):
     case uint8_t(MajorType::NEGATIVE): {
       int32_t value;
-      if (!DecodeSigned(bytes, &value))
-        return Error::BINARY_ENCODING_INVALID_SIGNED;
+      if (!DecodeSigned(bytes, &value)) return Error::CBOR_INVALID_SIGNED;
       out->HandleInt(value);
       return Error::OK;
     }
@@ -496,7 +491,7 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
     case uint8_t(MajorType::TAG):           // todo
     case uint8_t(MajorType::SIMPLE_VALUE):  // supported cases handled above
     default:
-      return Error::BINARY_ENCODING_UNSUPPORTED_VALUE;
+      return Error::CBOR_UNSUPPORTED_VALUE;
   }
 }
 
@@ -521,7 +516,7 @@ Error ParseArray(int32_t stack_depth, span<uint8_t>* bytes,
     Error status = ParseValue(stack_depth, bytes, out);
     if (status != Error::OK) return status;
   }
-  return Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_ARRAY;
+  return Error::CBOR_UNEXPECTED_EOF_IN_ARRAY;
 }
 
 // |bytes| must start with the indefinite length array byte, so basically,
@@ -550,23 +545,23 @@ Error ParseMap(int32_t stack_depth, span<uint8_t>* bytes,
       Error error = ParseUTF16String(bytes, out);
       if (error != Error::OK) return error;
     } else {
-      return Error::BINARY_ENCODING_INVALID_MAP_KEY;
+      return Error::CBOR_INVALID_MAP_KEY;
     }
     // Parse value.
     Error status = ParseValue(stack_depth, bytes, out);
     if (status != Error::OK) return status;
   }
-  return Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_MAP;
+  return Error::CBOR_UNEXPECTED_EOF_IN_MAP;
 }
 }  // namespace
 
-void ParseBinary(span<uint8_t> bytes, JsonParserHandler* json_out) {
+void ParseCBOR(span<uint8_t> bytes, JsonParserHandler* json_out) {
   if (bytes.empty()) {
-    json_out->HandleError(Status{Error::BINARY_ENCODING_NO_INPUT, 0});
+    json_out->HandleError(Status{Error::CBOR_NO_INPUT, 0});
     return;
   }
   if (bytes[0] != kInitialByteIndefiniteLengthMap) {
-    json_out->HandleError(Status{Error::BINARY_ENCODING_INVALID_START_BYTE, 0});
+    json_out->HandleError(Status{Error::CBOR_INVALID_START_BYTE, 0});
     return;
   }
   span<uint8_t> internal_bytes = bytes;

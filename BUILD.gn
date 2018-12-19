@@ -38,10 +38,10 @@ test("json_parser_test") {
   ]
 }
 
-static_library("binary_encoding") {
+static_library("cbor") {
   sources = [
-    "encoding/binary_encoding.cc",
-    "encoding/binary_encoding.h",
+    "encoding/cbor.cc",
+    "encoding/cbor.h",
     "encoding/json_parser_handler.h",
     "encoding/span.h",
     "encoding/status.h",
@@ -51,12 +51,12 @@ static_library("binary_encoding") {
   ]
 }
 
-test("binary_encoding_test") {
+test("cbor_test") {
   sources = [
-    "encoding/binary_encoding_test.cc",
+    "encoding/cbor_test.cc",
   ]
   deps = [
-    ":binary_encoding",
+    ":cbor",
     ":json_std_string_writer",
     ":linux_dev_platform",
     "//testing:gtest_main",

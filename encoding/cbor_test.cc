@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "binary_encoding.h"
+#include "cbor.h"
 
 #include <array>
 #include <string>
@@ -365,7 +365,7 @@ TEST(JsonToCborEncoderTest, SevenBitStrings) {
   std::vector<uint8_t> encoded;
   Status status;
   std::unique_ptr<JsonParserHandler> encoder =
-      NewJsonToBinaryEncoder(&encoded, &status);
+      NewJsonToCBOREncoder(&encoded, &status);
   std::vector<uint16_t> utf16;
   utf16.push_back('f');
   utf16.push_back('o');
@@ -395,7 +395,7 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   std::vector<uint8_t> encoded;
   Status status;
   std::unique_ptr<JsonParserHandler> encoder =
-      NewJsonToBinaryEncoder(&encoded, &status);
+      NewJsonToCBOREncoder(&encoded, &status);
   span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                          json.size());
   parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
@@ -434,7 +434,7 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   std::string decoded;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
-  ParseBinary(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
+  ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ(json, decoded);
 }
@@ -449,36 +449,35 @@ TEST(JsonCborRoundtrip, MoreRoundtripExamples) {
     std::vector<uint8_t> encoded;
     Status status;
     std::unique_ptr<JsonParserHandler> encoder =
-        NewJsonToBinaryEncoder(&encoded, &status);
+        NewJsonToCBOREncoder(&encoded, &status);
     span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                            json.size());
     parseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
     std::string decoded;
     std::unique_ptr<JsonParserHandler> json_writer =
         NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
-    ParseBinary(span<uint8_t>(encoded.data(), encoded.size()),
-                json_writer.get());
+    ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(json, decoded);
   }
 }
 
-TEST(ParseBinaryTest, ParseEmptyBinaryMessage) {
+TEST(ParseCBORTest, ParseEmptyCBORMessage) {
   // Just an indefinite length map that's empty (0xff = stop byte).
   std::vector<uint8_t> in = {0xbf, 0xff};
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(in.data(), in.size()), json_writer.get());
+  ParseCBOR(span<uint8_t>(in.data(), in.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ("{}", out);
 }
 
-TEST(ParseBinaryTest, ParseBinaryHelloWorld) {
+TEST(ParseCBORTest, ParseCBORHelloWorld) {
   std::vector<uint8_t> bytes;
 
-  bytes.push_back(0xbf);                    // start indef length map.
+  bytes.push_back(0xbf);                       // start indef length map.
   EncodeSevenBitStringForTest("msg", &bytes);  // key: msg
   // Now write the value, the familiar "Hello, 🌎." where the globe is expressed
   // as two utf16 chars.
@@ -493,53 +492,53 @@ TEST(ParseBinaryTest, ParseBinaryHelloWorld) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ("{\"msg\":\"Hello, \\ud83c\\udf0e.\"}", out);
 }
 
-TEST(ParseBinaryTest, NoInputError) {
+TEST(ParseCBORTest, NoInputError) {
   std::vector<uint8_t> in = {};
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(in.data(), in.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_NO_INPUT, status.error);
+  ParseCBOR(span<uint8_t>(in.data(), in.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_NO_INPUT, status.error);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, InvalidStartByteError) {
+TEST(ParseCBORTest, InvalidStartByteError) {
   // Here we test that some actual json, which usually starts with {,
-  // is not considered a binary message. Binary messages must start with
-  // 0xbf, the indefinite length map start byte.
+  // is not considered CBOR. CBOR messages must start with 0xbf, the
+  // indefinite length map start byte.
   std::string json = "{\"msg\": \"Hello, world.\"}";
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(
+  ParseCBOR(
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_START_BYTE, status.error);
+  EXPECT_EQ(Error::CBOR_INVALID_START_BYTE, status.error);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, UnexpectedEofExpectedValueError) {
-  std::vector<uint8_t> bytes = {0xbf};      // The byte for starting a map.
+TEST(ParseCBORTest, UnexpectedEofExpectedValueError) {
+  std::vector<uint8_t> bytes = {0xbf};         // The byte for starting a map.
   EncodeSevenBitStringForTest("key", &bytes);  // A key; so value would be next.
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_UNEXPECTED_EOF_EXPECTED_VALUE, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_EXPECTED_VALUE, status.error);
   EXPECT_EQ(int64_t(bytes.size()), status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, UnexpectedEofInArrayError) {
-  std::vector<uint8_t> bytes = {0xbf};        // The byte for starting a map.
+TEST(ParseCBORTest, UnexpectedEofInArrayError) {
+  std::vector<uint8_t> bytes = {0xbf};  // The byte for starting a map.
   EncodeSevenBitStringForTest("array",
                               &bytes);  // A key; so value would be next.
   bytes.push_back(0x9f);  // byte for indefinite length array start.
@@ -547,25 +546,25 @@ TEST(ParseBinaryTest, UnexpectedEofInArrayError) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_ARRAY, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_IN_ARRAY, status.error);
   EXPECT_EQ(int64_t(bytes.size()), status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, UnexpectedEofInMapError) {
+TEST(ParseCBORTest, UnexpectedEofInMapError) {
   std::vector<uint8_t> bytes = {0xbf};  // The byte for starting a map.
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_UNEXPECTED_EOF_IN_MAP, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_IN_MAP, status.error);
   EXPECT_EQ(1, status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, InvalidMapKeyError) {
+TEST(ParseCBORTest, InvalidMapKeyError) {
   // The byte for starting a map, followed by a byte representing null.
   // null is not a valid map key.
   std::vector<uint8_t> bytes = {0xbf, 7 << 5 | 22};
@@ -573,13 +572,13 @@ TEST(ParseBinaryTest, InvalidMapKeyError) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_MAP_KEY, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_INVALID_MAP_KEY, status.error);
   EXPECT_EQ(1, status.pos);
   EXPECT_EQ("", out);
 }
 
-std::vector<uint8_t> MakeNestedBinary(int depth) {
+std::vector<uint8_t> MakeNestedCBOR(int depth) {
   std::vector<uint8_t> bytes;
   for (int ii = 0; ii < depth; ++ii) {
     bytes.push_back(0xbf);  // indef length map start
@@ -591,25 +590,25 @@ std::vector<uint8_t> MakeNestedBinary(int depth) {
   return bytes;
 }
 
-TEST(ParseBinaryTest, StackLimitExceededError) {
+TEST(ParseCBORTest, StackLimitExceededError) {
   {  // Depth 3: no stack limit exceeded error and is easy to inspect.
-    std::vector<uint8_t> bytes = MakeNestedBinary(3);
+    std::vector<uint8_t> bytes = MakeNestedCBOR(3);
     std::string out;
     Status status;
     std::unique_ptr<JsonParserHandler> json_writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(Status::npos(), status.pos);
     EXPECT_EQ("{\"key\":{\"key\":{\"key\":\"innermost_value\"}}}", out);
   }
   {  // Depth 1000: no stack limit exceeded.
-    std::vector<uint8_t> bytes = MakeNestedBinary(1000);
+    std::vector<uint8_t> bytes = MakeNestedCBOR(1000);
     std::string out;
     Status status;
     std::unique_ptr<JsonParserHandler> json_writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(Status::npos(), status.pos);
   }
@@ -620,28 +619,28 @@ TEST(ParseBinaryTest, StackLimitExceededError) {
   EncodeSevenBitStringForTest("key", &opening_segment);
 
   {  // Depth 1001: limit exceeded.
-    std::vector<uint8_t> bytes = MakeNestedBinary(1001);
+    std::vector<uint8_t> bytes = MakeNestedCBOR(1001);
     std::string out;
     Status status;
     std::unique_ptr<JsonParserHandler> json_writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-    EXPECT_EQ(Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED, status.error);
+    ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    EXPECT_EQ(Error::CBOR_STACK_LIMIT_EXCEEDED, status.error);
     EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
   }
   {  // Depth 1200: still limit exceeded, and at the same pos as for 1001
-    std::vector<uint8_t> bytes = MakeNestedBinary(1200);
+    std::vector<uint8_t> bytes = MakeNestedCBOR(1200);
     std::string out;
     Status status;
     std::unique_ptr<JsonParserHandler> json_writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-    ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-    EXPECT_EQ(Error::BINARY_ENCODING_STACK_LIMIT_EXCEEDED, status.error);
+    ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+    EXPECT_EQ(Error::CBOR_STACK_LIMIT_EXCEEDED, status.error);
     EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
   }
 }
 
-TEST(ParseBinaryTest, UnsupportedValueError) {
+TEST(ParseCBORTest, UnsupportedValueError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
@@ -650,13 +649,13 @@ TEST(ParseBinaryTest, UnsupportedValueError) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_UNSUPPORTED_VALUE, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_UNSUPPORTED_VALUE, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, InvalidString16Error) {
+TEST(ParseCBORTest, InvalidString16Error) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
@@ -669,13 +668,13 @@ TEST(ParseBinaryTest, InvalidString16Error) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_STRING16, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_INVALID_STRING16, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, InvalidString8Error) {
+TEST(ParseCBORTest, InvalidString8Error) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
@@ -686,13 +685,13 @@ TEST(ParseBinaryTest, InvalidString8Error) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_STRING8, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_INVALID_STRING8, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, String8MustBe7BitError) {
+TEST(ParseCBORTest, String8MustBe7BitError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
@@ -704,13 +703,13 @@ TEST(ParseBinaryTest, String8MustBe7BitError) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_STRING8_MUST_BE_7BIT, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_STRING8_MUST_BE_7BIT, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, InvalidDoubleError) {
+TEST(ParseCBORTest, InvalidDoubleError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
@@ -722,13 +721,13 @@ TEST(ParseBinaryTest, InvalidDoubleError) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_DOUBLE, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_INVALID_DOUBLE, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
 
-TEST(ParseBinaryTest, InvalidSignedError) {
+TEST(ParseCBORTest, InvalidSignedError) {
   std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
@@ -739,8 +738,8 @@ TEST(ParseBinaryTest, InvalidSignedError) {
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
-  ParseBinary(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::BINARY_ENCODING_INVALID_SIGNED, status.error);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_INVALID_SIGNED, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
