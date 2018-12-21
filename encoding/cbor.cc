@@ -69,6 +69,11 @@ static constexpr uint8_t kInitialByteIndefiniteLengthMap =
 static constexpr uint8_t kStopByte =
     EncodeInitialByte(MajorType::SIMPLE_VALUE, 31);
 
+// See RFC 7049 Table 3 and Section 2.4.4.2. This is used as a prefix for
+// arbitrary binary data encoded as BYTE_STRING.
+static constexpr uint8_t kExpectedConversionToBase64Tag =
+    EncodeInitialByte(MajorType::TAG, 22);
+
 // When parsing CBOR, we limit recursion depth for objects and arrays
 // to this constant.
 static constexpr int kStackLimit = 1000;
@@ -311,6 +316,29 @@ bool DecodeUTF8String(span<uint8_t>* bytes, std::vector<uint8_t>* str) {
   return true;
 }
 
+void EncodeBinary(span<uint8_t> in, std::vector<uint8_t>* out) {
+  out->push_back(kExpectedConversionToBase64Tag);
+  uint64_t byte_length = static_cast<uint64_t>(in.size_bytes());
+  WriteItemStart(MajorType::BYTE_STRING, byte_length, out);
+  out->insert(out->end(), in.begin(), in.end());
+}
+
+bool DecodeBinary(span<uint8_t>* bytes, std::vector<uint8_t>* out) {
+  if (bytes->empty() || (*bytes)[0] != kExpectedConversionToBase64Tag)
+    return false;
+  span<uint8_t> internal_bytes = bytes->subspan(1);
+  MajorType type;
+  uint64_t size;
+  if (!ReadItemStart(&internal_bytes, &type, &size)) return false;
+  if (type != MajorType::BYTE_STRING) return false;
+  if (static_cast<size_t>(internal_bytes.size()) < size) return false;
+  assert(out->empty());
+  out->insert(out->end(), internal_bytes.begin(),
+              internal_bytes.begin() + size);
+  *bytes = internal_bytes.subspan(size);
+  return true;
+}
+
 // A double is encoded with a specific initial byte
 // (kInitialByteForDouble) plus the 64 bits of payload for its value.
 constexpr int kEncodedDoubleSize = 1 + sizeof(uint64_t);
@@ -372,6 +400,10 @@ class JsonToCBOREncoder : public JsonParserHandler {
     std::vector<uint8_t> sevenbit_chars(chars.begin(), chars.end());
     EncodeUTF8String(
         span<uint8_t>(sevenbit_chars.data(), sevenbit_chars.size()), out_);
+  }
+
+  void HandleBinary(std::vector<uint8_t> bytes) override {
+    EncodeBinary(span<uint8_t>(bytes.data(), bytes.size()), out_);
   }
 
   void HandleDouble(double value) override { EncodeDouble(value, out_); };
@@ -465,6 +497,12 @@ Error ParseValue(int32_t stack_depth, span<uint8_t>* bytes,
       double value;
       if (!DecodeDouble(bytes, &value)) return Error::CBOR_INVALID_DOUBLE;
       out->HandleDouble(value);
+      return Error::OK;
+    }
+    case kExpectedConversionToBase64Tag: {
+      std::vector<uint8_t> binary;
+      if (!DecodeBinary(bytes, &binary)) return Error::CBOR_INVALID_BINARY;
+      out->HandleBinary(std::move(binary));
       return Error::OK;
     }
     case kInitialByteIndefiniteLengthArray:

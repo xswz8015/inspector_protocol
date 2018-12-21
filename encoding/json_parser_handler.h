@@ -21,6 +21,7 @@ class JsonParserHandler {
   // TODO(johannes): Support utf8 (requires utf16->utf8 conversion
   // internally, including handling mismatched surrogate pairs).
   virtual void HandleString(std::vector<uint16_t> chars) = 0;
+  virtual void HandleBinary(std::vector<uint8_t> bytes) = 0;
   virtual void HandleDouble(double value) = 0;
   virtual void HandleInt(int32_t value) = 0;
   virtual void HandleBool(bool value) = 0;

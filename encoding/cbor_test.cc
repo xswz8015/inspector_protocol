@@ -302,6 +302,25 @@ TEST(EncodeDecode8StringTest, RoundtripsHelloWorld) {
   EXPECT_TRUE(encoded_bytes.empty());
 }
 
+TEST(EncodeDecodeBinaryTest, RoundtripsHelloWorld) {
+  std::vector<uint8_t> binary = {'H', 'e', 'l', 'l', 'o', ',', ' ',
+                                 'w', 'o', 'r', 'l', 'd', '.'};
+  std::vector<uint8_t> encoded;
+  EncodeBinary(span<uint8_t>(binary.data(), binary.size()), &encoded);
+  // So, on the wire we see that the binary blob travels unmodified.
+  EXPECT_THAT(
+      encoded,
+      ElementsAreArray(std::array<uint8_t, 15>{
+          {(6 << 5 | 22),  // tag 22 indicating base64 interpretation in JSON
+           (2 << 5 | 13),  // BYTE_STRING (type 2) of length 13
+           'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '.'}}));
+  std::vector<uint8_t> decoded;
+  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
+  EXPECT_TRUE(DecodeBinary(&encoded_bytes, &decoded));
+  EXPECT_THAT(decoded, ElementsAreArray(binary));
+  EXPECT_TRUE(encoded_bytes.empty());
+}
+
 TEST(EncodeDecodeDoubleTest, RoundtripsWikipediaExample) {
   // https://en.wikipedia.org/wiki/Double-precision_floating-point_format
   // provides the example of a hex representation 3FD5 5555 5555 5555, which
@@ -360,7 +379,7 @@ void EncodeSevenBitStringForTest(const std::string& key,
 
 TEST(JsonToCborEncoderTest, SevenBitStrings) {
   // When a string can be represented as 7 bit ascii, the encoder will use the
-  // STRING (major Type 2) type, so the actual characters end up as bytes on the
+  // STRING (major Type 3) type, so the actual characters end up as bytes on the
   // wire.
   std::vector<uint8_t> encoded;
   Status status;
@@ -380,8 +399,8 @@ TEST(JsonToCborEncoderTest, SevenBitStrings) {
 }
 
 TEST(JsonCborRoundtrip, EncodingDecoding) {
-  // Hits all the cases except error in JsonParserHandler, first parsing
-  // a JSON message into CBOR, then parsing it back from CBOR into JSON.
+  // Hits all the cases except binary and error in JsonParserHandler, first
+  // parsing a JSON message into CBOR, then parsing it back from CBOR into JSON.
   std::string json =
       "{"
       "\"string\":\"Hello, \\ud83c\\udf0e.\","
@@ -460,6 +479,38 @@ TEST(JsonCborRoundtrip, MoreRoundtripExamples) {
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(json, decoded);
   }
+}
+
+TEST(JsonToCborEncoderTest, HelloWorldBinary_WithTripToJson) {
+  // The JsonParserHandler::HandleBinary is a special case: The JSON parser will
+  // never call this method, because JSON does not natively support the binary
+  // type. So, we can't fully roundtrip. However, the other direction works:
+  // binary will be rendered in JSON, as a base64 string. So, we make calls to
+  // the encoder directly here, to construct a message, and one of these calls
+  // is ::HandleBinary, to which we pass a "binary" string containing "Hello,
+  // world.".
+  std::vector<uint8_t> encoded;
+  Status status;
+  std::unique_ptr<JsonParserHandler> encoder =
+      NewJsonToCBOREncoder(&encoded, &status);
+  encoder->HandleObjectBegin();
+  // Emit a key.
+  encoder->HandleString(std::vector<uint16_t>{'f', 'o', 'o'});
+  // Emit the binary payload, an arbitrary array of bytes that happens to
+  // be the ascii message "Hello, world.".
+  encoder->HandleBinary(std::vector<uint8_t>{'H', 'e', 'l', 'l', 'o', ',', ' ',
+                                             'w', 'o', 'r', 'l', 'd', '.'});
+  encoder->HandleObjectEnd();
+  EXPECT_EQ(Error::OK, status.error);
+
+  // Now drive the json writer via the CBOR decoder.
+  std::string decoded;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
+  ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
+  EXPECT_EQ(Error::OK, status.error);
+  // "Hello, world." in base64 is "SGVsbG8sIHdvcmxkLg==".
+  EXPECT_EQ("{\"foo\":\"SGVsbG8sIHdvcmxkLg==\"}", decoded);
 }
 
 TEST(ParseCBORTest, ParseEmptyCBORMessage) {
@@ -705,6 +756,25 @@ TEST(ParseCBORTest, String8MustBe7BitError) {
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_STRING8_MUST_BE_7BIT, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseCBORTest, InvalidBinaryError) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeSevenBitStringForTest("key", &bytes);
+  int64_t error_pos = bytes.size();
+  bytes.push_back(6 << 5 | 22);  // base64 hint for JSON; indicates binary
+  bytes.push_back(2 << 5 | 10);  // BYTE_STRING (major type 2) of length 10
+  // Just two garbage bytes, not enough for the binary.
+  bytes.push_back(0x31);
+  bytes.push_back(0x23);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_INVALID_BINARY, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }

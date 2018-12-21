@@ -24,6 +24,9 @@ namespace inspector_protocol {
 //   bytes encoded must be even.
 // - UTF8 strings (major type 3) may only have ASCII characters
 //   (7 bit US-ASCII).
+// - Arbitrary byte arrays, in the inspector protocol called 'binary',
+//   are encoded as BYTE_STRING (major type 2), prefixed with a byte
+//   indicating base64 when rendered as JSON.
 
 // Encodes |value| as UNSIGNED (major type 0).
 void EncodeUnsigned(uint64_t value, std::vector<uint8_t>* out);
@@ -59,6 +62,12 @@ void EncodeUTF8String(span<uint8_t> in, std::vector<uint8_t>* out);
 // beginning of |bytes|, extracts the bytes into |str|. Updates |bytes|
 // to the first byte after the encoded byte string. Returns true iff successful.
 bool DecodeUTF8String(span<uint8_t>* bytes, std::vector<uint8_t>* str);
+
+// Encodes arbitrary binary data in |in| as a BYTE_STRING (major type 2) with
+// definitive length, prefixed with tag 22 indicating expected conversion to
+// base64 (see RFC 7049, Table 3 and Section 2.4.4.2).
+void EncodeBinary(span<uint8_t> in, std::vector<uint8_t>* out);
+bool DecodeBinary(span<uint8_t>* bytes, std::vector<uint8_t>* out);
 
 // Encodes / decodes a double as Major type 7 (SIMPLE_VALUE),
 // with additional info = 27, followed by 8 bytes in big endian.

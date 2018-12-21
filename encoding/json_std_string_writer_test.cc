@@ -53,6 +53,49 @@ TEST(JsonStdStringWriterTest, HelloWorld) {
       out);
 }
 
+TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
+  // The encoder emits binary submitted to JsonParserHandler::HandleBinary
+  // as base64. The following three examples are taken from
+  // https://en.wikipedia.org/wiki/Base64.
+  {
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    writer->HandleBinary({'M', 'a', 'n'});
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ("\"TWFu\"", out);
+  }
+  {
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    writer->HandleBinary({'M', 'a'});
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ("\"TWE=\"", out);
+  }
+  {
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    writer->HandleBinary({'M'});
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ("\"TQ==\"", out);
+  }
+  {  // "Hello, world.", verified with base64decode.org.
+    std::string out;
+    Status status;
+    std::unique_ptr<JsonParserHandler> writer =
+        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+    writer->HandleBinary(
+        {'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '.'});
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ("\"SGVsbG8sIHdvcmxkLg==\"", out);
+  }
+}
+
 TEST(JsonStdStringWriterTest, HandlesErrors) {
   // When an error is sent via HandleError, it saves it in the provided
   // status and clears the output.

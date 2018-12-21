@@ -28,6 +28,12 @@ class Log : public JsonParserHandler {
     log_ << "string: " << base::UTF16ToUTF8(foo) << "\n";
   }
 
+  void HandleBinary(std::vector<uint8_t> bytes) override {
+    // JSON doesn't have native support for arbitrary bytes, so our parser will
+    // never call this.
+    assert(false);
+  }
+
   void HandleDouble(double value) override {
     log_ << "double: " << value << "\n";
   }

@@ -45,6 +45,41 @@ class State {
   int size_ = 0;
 };
 
+constexpr char kBase64Table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz0123456789+/";
+
+void Base64Encode(const std::vector<uint8_t>& in, std::string* out) {
+  // The following three cases are based on the tables in the example
+  // section in https://en.wikipedia.org/wiki/Base64. We process three
+  // input bytes at a time, emitting 4 output bytes at a time.
+  size_t ii = 0;
+
+  // While possible, process three input bytes.
+  for (; ii + 3 <= in.size(); ii += 3) {
+    uint32_t twentyfour_bits = (in[ii] << 16) | (in[ii + 1] << 8) | in[ii + 2];
+    out->push_back(kBase64Table[(twentyfour_bits >> 18)]);
+    out->push_back(kBase64Table[(twentyfour_bits >> 12) & 0x3f]);
+    out->push_back(kBase64Table[(twentyfour_bits >> 6) & 0x3f]);
+    out->push_back(kBase64Table[twentyfour_bits & 0x3f]);
+  }
+  if (ii + 2 <= in.size()) {  // Process two input bytes.
+    uint32_t twentyfour_bits = (in[ii] << 16) | (in[ii + 1] << 8);
+    out->push_back(kBase64Table[(twentyfour_bits >> 18)]);
+    out->push_back(kBase64Table[(twentyfour_bits >> 12) & 0x3f]);
+    out->push_back(kBase64Table[(twentyfour_bits >> 6) & 0x3f]);
+    out->push_back('=');  // Emit padding.
+    return;
+  }
+  if (ii + 1 <= in.size()) {  // Process a single input byte.
+    uint32_t twentyfour_bits = (in[ii] << 16);
+    out->push_back(kBase64Table[(twentyfour_bits >> 18)]);
+    out->push_back(kBase64Table[(twentyfour_bits >> 12) & 0x3f]);
+    out->push_back('=');  // Emit padding.
+    out->push_back('=');  // Emit padding.
+  }
+}
+
 // Implements a handler for JSON parser events to emit a JSON string.
 class Writer : public JsonParserHandler {
  public:
@@ -109,6 +144,14 @@ class Writer : public JsonParserHandler {
         PrintHex(ch, out_);
       }
     }
+    out_->append("\"");
+  }
+
+  void HandleBinary(std::vector<uint8_t> bytes) override {
+    if (!status_->ok()) return;
+    state_.top().StartElement(out_);
+    out_->append("\"");
+    Base64Encode(bytes, out_);
     out_->append("\"");
   }
 

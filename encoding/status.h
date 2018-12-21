@@ -37,8 +37,9 @@ enum class Error {
   CBOR_INVALID_STRING16 = 0x17,
   CBOR_INVALID_STRING8 = 0x18,
   CBOR_STRING8_MUST_BE_7BIT = 0x19,
-  CBOR_INVALID_DOUBLE = 0x1a,
-  CBOR_INVALID_SIGNED = 0x1b,
+  CBOR_INVALID_BINARY = 0x1a,
+  CBOR_INVALID_DOUBLE = 0x1b,
+  CBOR_INVALID_SIGNED = 0x1c,
 };
 
 // A status value with position that can be copied. The default status
