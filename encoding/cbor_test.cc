@@ -7,6 +7,7 @@
 #include <array>
 #include <string>
 #include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "json_parser.h"
@@ -16,47 +17,48 @@
 using testing::ElementsAreArray;
 
 namespace inspector_protocol {
-TEST(EncodeDecodeUnsignedTest, Roundtrips23) {
-  // This roundtrips the uint64_t value 23 through the pair of EncodeUnsigned /
-  // DecodeUnsigned functions; this is interesting since 23 is encoded as
-  // a single byte.
+//
+// EncodeInt32 / CBORTokenTag::INT32
+//
+TEST(EncodeDecodeInt32Test, Roundtrips23) {
+  // This roundtrips the int32_t value 23 through the pair of EncodeInt32 /
+  // CBORTokenizer; this is interesting since 23 is encoded as a single byte.
   std::vector<uint8_t> encoded;
-  EncodeUnsigned(23, &encoded);
+  EncodeInt32(23, &encoded);
   // first three bits: major type = 0; remaining five bits: additional info =
   // value 23.
   EXPECT_THAT(encoded, ElementsAreArray(std::array<uint8_t, 1>{{23}}));
 
-  // Now the reverse direction: decode the encoded empty string and store it
-  // into |decoded|.
-  uint64_t decoded = 0;  // Assign != 23 to ensure it's not 23 by accident.
-  span<uint8_t> encoded_bytes(span<uint8_t>(&encoded[0], encoded.size()));
-  EXPECT_TRUE(DecodeUnsigned(&encoded_bytes, &decoded));
-  EXPECT_EQ(uint64_t(23), decoded);
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Reverse direction: decode with CBORTokenizer.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::INT32, tokenizer.TokenTag());
+  EXPECT_EQ(23, tokenizer.GetInt32());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
-TEST(EncodeDecodeUnsignedTest, RoundtripsUint8) {
-  // This roundtrips the uint64_t value 42 through the pair of EncodeUnsigned /
-  // EncodeUnsigned functions. This is different from Roundtrip0 because
-  // 42 is encoded in an extra byte after the initial one.
+TEST(EncodeDecodeInt32Test, RoundtripsUint8) {
+  // This roundtrips the int32_t value 42 through the pair of EncodeInt32 /
+  // CBORTokenizer. This is different from Roundtrip23 because 42 is encoded
+  // in an extra byte after the initial one.
   std::vector<uint8_t> encoded;
-  EncodeUnsigned(42, &encoded);
+  EncodeInt32(42, &encoded);
   // first three bits: major type = 0;
   // remaining five bits: additional info = 24, indicating payload is uint8.
   EXPECT_THAT(encoded, ElementsAreArray(std::array<uint8_t, 2>{{24, 42}}));
 
-  // Reverse direction.
-  uint64_t decoded = 0;
-  span<uint8_t> encoded_bytes(span<uint8_t>(&encoded[0], encoded.size()));
-  EXPECT_TRUE(DecodeUnsigned(&encoded_bytes, &decoded));
-  EXPECT_EQ(uint64_t(42), decoded);
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Reverse direction: decode with CBORTokenizer.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::INT32, tokenizer.TokenTag());
+  EXPECT_EQ(42, tokenizer.GetInt32());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
-TEST(EncodeDecodeUnsignedTest, RoundtripsUint16) {
+TEST(EncodeDecodeInt32Test, RoundtripsUint16) {
   // 500 is encoded as a uint16 after the initial byte.
   std::vector<uint8_t> encoded;
-  EncodeUnsigned(500, &encoded);
+  EncodeInt32(500, &encoded);
   EXPECT_EQ(size_t(3), encoded.size());  // 1 for initial byte, 2 for uint16.
   // first three bits: major type = 0;
   // remaining five bits: additional info = 25, indicating payload is uint16.
@@ -64,18 +66,42 @@ TEST(EncodeDecodeUnsignedTest, RoundtripsUint16) {
   EXPECT_EQ(0x01, encoded[1]);
   EXPECT_EQ(0xf4, encoded[2]);
 
-  // Reverse direction.
-  uint64_t decoded;
-  span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUnsigned(&encoded_bytes, &decoded));
-  EXPECT_EQ(uint64_t(500), decoded);
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Reverse direction: decode with CBORTokenizer.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::INT32, tokenizer.TokenTag());
+  EXPECT_EQ(500, tokenizer.GetInt32());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
-TEST(EncodeDecodeUnsignedTest, RoundtripsUint32) {
-  // 0xdeadbeef is encoded as a uint32 after the initial byte.
+TEST(EncodeDecodeInt32Test, RoundtripsInt32Max) {
+  // std::numeric_limits<int32_t> is encoded as a uint32 after the initial byte.
   std::vector<uint8_t> encoded;
-  EncodeUnsigned(0xdeadbeef, &encoded);
+  EncodeInt32(std::numeric_limits<int32_t>::max(), &encoded);
+  // 1 for initial byte, 4 for the uint32.
+  // first three bits: major type = 0;
+  // remaining five bits: additional info = 26, indicating payload is uint32.
+  EXPECT_THAT(
+      encoded,
+      ElementsAreArray(std::array<uint8_t, 5>{{26, 0x7f, 0xff, 0xff, 0xff}}));
+
+  // Reverse direction: decode with CBORTokenizer.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::INT32, tokenizer.TokenTag());
+  EXPECT_EQ(std::numeric_limits<int32_t>::max(), tokenizer.GetInt32());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
+}
+
+TEST(EncodeDecodeInt32Test, CantRoundtripUint32) {
+  // 0xdeadbeef is a value which does not fit below
+  // std::numerical_limits<int32_t>::max(), so we can't encode
+  // it with EncodeInt32. However, CBOR does support this, so we
+  // encode it here manually with the internal routine, just to observe
+  // that it's considered an invalid int32 by CBORTokenizer.
+  std::vector<uint8_t> encoded;
+  cbor_internals::WriteTokenStart(cbor_internals::MajorType::UNSIGNED,
+                                  0xdeadbeef, &encoded);
   // 1 for initial byte, 4 for the uint32.
   // first three bits: major type = 0;
   // remaining five bits: additional info = 26, indicating payload is uint32.
@@ -83,34 +109,14 @@ TEST(EncodeDecodeUnsignedTest, RoundtripsUint32) {
       encoded,
       ElementsAreArray(std::array<uint8_t, 5>{{26, 0xde, 0xad, 0xbe, 0xef}}));
 
-  // Reverse direction.
-  uint64_t decoded;
-  span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUnsigned(&encoded_bytes, &decoded));
-  EXPECT_EQ(uint64_t(0xdeadbeef), decoded);
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Now try to decode; we treat this as an invalid INT32.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  // 0xdeadbeef is > std::numerical_limits<int32_t>::max().
+  EXPECT_EQ(CBORTokenTag::ERROR, tokenizer.TokenTag());
+  EXPECT_EQ(Error::CBOR_INVALID_INT32, tokenizer.Status().error);
 }
 
-TEST(EncodeDecodeUnsignedTest, RoundtripsUint64) {
-  // 0xaabbccddeeff0011 is encoded as a uint64 after the initial byte
-  std::vector<uint8_t> encoded;
-  EncodeUnsigned(0xaabbccddeeff0011, &encoded);
-  // 1 for initial byte, 8 for the uint64.
-  // first three bits: major type = 0;
-  // remaining five bits: additional info = 27, indicating payload is uint64.
-  EXPECT_THAT(encoded,
-              ElementsAreArray(std::array<uint8_t, 9>{
-                  {27, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11}}));
-
-  // Reverse direction.
-  uint64_t decoded;
-  span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUnsigned(&encoded_bytes, &decoded));
-  EXPECT_EQ(0xaabbccddeeff0011, decoded);
-  EXPECT_TRUE(encoded_bytes.empty());
-}
-
-TEST(EncodeDecodeUnsignedTest, ErrorCases) {
+TEST(EncodeDecodeInt32Test, DecodeErrorCases) {
   struct TestCase {
     std::vector<uint8_t> data;
     std::string msg;
@@ -122,47 +128,40 @@ TEST(EncodeDecodeUnsignedTest, ErrorCases) {
        TestCase{{27, 0xaa, 0xbb, 0xcc},
                 "additional info = 27 would require 8 bytes of payload (but "
                 "it's 3)"},
-       TestCase{{2 << 5}, "we require major type 0 (but it's 2)"},
        TestCase{{29}, "additional info = 29 isn't recognized"}}};
+
   for (const TestCase& test : tests) {
     SCOPED_TRACE(test.msg);
-    uint64_t decoded = 0xdeadbeef;  // unlikely to be written by accident.
     span<uint8_t> encoded_bytes(&test.data[0], test.data.size());
-    EXPECT_FALSE(DecodeUnsigned(&encoded_bytes, &decoded));
-    EXPECT_EQ(0xdeadbeef, decoded);  // unmodified
-    EXPECT_EQ(test.data.size(), size_t(encoded_bytes.size()));
+    CBORTokenizer tokenizer(
+        span<uint8_t>(&encoded_bytes[0], encoded_bytes.size()));
+    EXPECT_EQ(CBORTokenTag::ERROR, tokenizer.TokenTag());
+    EXPECT_EQ(Error::CBOR_INVALID_INT32, tokenizer.Status().error);
   }
 }
 
-namespace internal {
-// EncodeNegative / DecodeNegative are not exposed in the header, but we
-// still want to test a roundtrip here.
-void EncodeNegative(int64_t value, std::vector<uint8_t>* out);
-bool DecodeNegative(span<uint8_t>* bytes, int64_t* value);
-
-TEST(EncodeDecodeNegativeTest, RoundtripsMinus24) {
-  // This roundtrips the int64_t value -24 through the pair of EncodeNegative /
-  // DecodeNegative functions; this is interesting since -24 is encoded as
-  // a single byte, and it tests the specific encoding (note how for unsigned
-  // the single byte covers values up to 23).
+TEST(EncodeDecodeInt32Test, RoundtripsMinus24) {
+  // This roundtrips the int32_t value -24 through the pair of EncodeInt32 /
+  // CBORTokenizer; this is interesting since -24 is encoded as
+  // a single byte as NEGATIVE, and it tests the specific encoding
+  // (note how for unsigned the single byte covers values up to 23).
   // Additional examples are covered in RoundtripsAdditionalExamples.
   std::vector<uint8_t> encoded;
-  EncodeNegative(-24, &encoded);
-  // first three bits: major type = 0; remaining five bits: additional info =
+  EncodeInt32(-24, &encoded);
+  // first three bits: major type = 1; remaining five bits: additional info =
   // value 23.
   EXPECT_THAT(encoded, ElementsAreArray(std::array<uint8_t, 1>{{1 << 5 | 23}}));
 
-  // Now the reverse direction: decode the encoded empty string and store it
-  // into decoded.
-  int64_t decoded = 0;  // Assign != 23 to ensure it's not 23 by accident.
-  span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeNegative(&encoded_bytes, &decoded));
-  EXPECT_EQ(-24, decoded);
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Reverse direction: decode with CBORTokenizer.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::INT32, tokenizer.TokenTag());
+  EXPECT_EQ(-24, tokenizer.GetInt32());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
-TEST(EncodeDecodeNegativeTest, RoundtripsAdditionalExamples) {
-  std::vector<int64_t> examples = {-1,
+TEST(EncodeDecodeInt32Test, RoundtripsAdditionalNegativeExamples) {
+  std::vector<int32_t> examples = {-1,
                                    -10,
                                    -24,
                                    -25,
@@ -171,48 +170,61 @@ TEST(EncodeDecodeNegativeTest, RoundtripsAdditionalExamples) {
                                    -300 * 1000,
                                    -1000 * 1000,
                                    -1000 * 1000 * 1000,
-                                   -5 * 1000 * 1000 * 1000,
-                                   std::numeric_limits<int64_t>::min()};
-  for (int64_t example : examples) {
-    SCOPED_TRACE(base::StringPrintf("example %ld", example));
+                                   std::numeric_limits<int32_t>::min()};
+  for (int32_t example : examples) {
+    SCOPED_TRACE(base::StringPrintf("example %d", example));
     std::vector<uint8_t> encoded;
-    EncodeNegative(example, &encoded);
-    int64_t decoded = 0;
-    span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-    EXPECT_TRUE(DecodeNegative(&encoded_bytes, &decoded));
-    EXPECT_EQ(example, decoded);
-    EXPECT_TRUE(encoded_bytes.empty());
+    EncodeInt32(example, &encoded);
+    CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+    EXPECT_EQ(CBORTokenTag::INT32, tokenizer.TokenTag());
+    EXPECT_EQ(example, tokenizer.GetInt32());
+    tokenizer.Next();
+    EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
   }
 }
-}  // namespace internal
 
-TEST(EncodeDecodeUTF16StringTest, RoundtripsEmpty) {
-  // This roundtrips the empty utf16 string through the pair of EncodeUTF16 /
-  // EncodeUTF16 functions.
+//
+// EncodeString16 / CBORTokenTag::STRING16
+//
+TEST(EncodeDecodeString16Test, RoundtripsEmpty) {
+  // This roundtrips the empty utf16 string through the pair of EncodeString16 /
+  // CBORTokenizer.
   std::vector<uint8_t> encoded;
-  EncodeUTF16String(span<uint16_t>(), &encoded);
+  EncodeString16(span<uint16_t>(), &encoded);
   EXPECT_EQ(size_t(1), encoded.size());
   // first three bits: major type = 2; remaining five bits: additional info =
   // size 0.
   EXPECT_EQ(2 << 5, encoded[0]);
 
-  // Now the reverse direction: decode the encoded empty string and store it
-  // into decoded.
-  std::vector<uint16_t> decoded;
-  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUTF16String(&encoded_bytes, &decoded));
-  EXPECT_TRUE(decoded.empty());
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Reverse direction: decode with CBORTokenizer.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::STRING16, tokenizer.TokenTag());
+  span<uint8_t> decoded_string16_wirerep = tokenizer.GetString16WireRep();
+  EXPECT_TRUE(decoded_string16_wirerep.empty());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
-TEST(EncodeDecodeUTF16StringTest, RoundtripsHelloWorld) {
+// On the wire, we STRING16 is encoded as little endian (least
+// significant byte first). The host may or may not be little endian,
+// so this routine follows the advice in
+// https://commandcenter.blogspot.com/2012/04/byte-order-fallacy.html.
+std::vector<uint16_t> String16WireRepToHost(span<uint8_t> in) {
+  assert((in.size() & 1) == 0);  // must be even number of bytes.
+  std::vector<uint16_t> host_out;
+  for (std::ptrdiff_t ii = 0; ii < in.size(); ii += 2)
+    host_out.push_back(in[ii + 1] << 8 | in[ii]);
+  return host_out;
+}
+
+TEST(EncodeDecodeString16Test, RoundtripsHelloWorld) {
   // This roundtrips the hello world message which is given here in utf16
   // characters. 0xd83c, 0xdf0e: UTF16 encoding for the "Earth Globe Americas"
   // character, 🌎.
   std::array<uint16_t, 10> msg{
       {'H', 'e', 'l', 'l', 'o', ',', ' ', 0xd83c, 0xdf0e, '.'}};
   std::vector<uint8_t> encoded;
-  EncodeUTF16String(span<uint16_t>(msg.data(), msg.size()), &encoded);
+  EncodeString16(span<uint16_t>(msg.data(), msg.size()), &encoded);
   // This will be encoded as BYTE_STRING of length 20, so the 20 is encoded in
   // the additional info part of the initial byte. Payload is two bytes for each
   // UTF16 character.
@@ -223,14 +235,22 @@ TEST(EncodeDecodeUTF16StringTest, RoundtripsHelloWorld) {
   EXPECT_THAT(encoded, ElementsAreArray(encoded_expected));
 
   // Now decode to complete the roundtrip.
-  std::vector<uint16_t> decoded;
-  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUTF16String(&encoded_bytes, &decoded));
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::STRING16, tokenizer.TokenTag());
+  std::vector<uint16_t> decoded =
+      String16WireRepToHost(tokenizer.GetString16WireRep());
   EXPECT_THAT(decoded, ElementsAreArray(msg));
-  EXPECT_TRUE(encoded_bytes.empty());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
+
+  // For bonus points, we look at the decoded message in UTF8 as well so we can
+  // easily see it on the terminal screen.
+  std::string utf8_decoded =
+      base::UTF16ToUTF8(base::StringPiece16(decoded.data(), decoded.size()));
+  EXPECT_EQ("Hello, 🌎.", utf8_decoded);
 }
 
-TEST(EncodeDecodeUTF16StringTest, Roundtrips500) {
+TEST(EncodeDecodeString16Test, Roundtrips500) {
   // We roundtrip a message that has 250 16 bit values. Each of these are just
   // set to their index. 250 is interesting because the cbor spec uses a
   // BYTE_STRING of length 500 for one of their examples of how to encode the
@@ -239,8 +259,7 @@ TEST(EncodeDecodeUTF16StringTest, Roundtrips500) {
   std::vector<uint16_t> two_fifty;
   for (uint16_t ii = 0; ii < 250; ++ii) two_fifty.push_back(ii);
   std::vector<uint8_t> encoded;
-  EncodeUTF16String(span<uint16_t>(two_fifty.data(), two_fifty.size()),
-                    &encoded);
+  EncodeString16(span<uint16_t>(two_fifty.data(), two_fifty.size()), &encoded);
   EXPECT_EQ(size_t(3 + 250 * 2), encoded.size());
   // Now check the first three bytes:
   // Major type: 2 (BYTE_STRING)
@@ -251,43 +270,45 @@ TEST(EncodeDecodeUTF16StringTest, Roundtrips500) {
   EXPECT_EQ(0xf4, encoded[2]);
 
   // Now decode to complete the roundtrip.
-  std::vector<uint16_t> decoded;
-  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUTF16String(&encoded_bytes, &decoded));
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::STRING16, tokenizer.TokenTag());
+  std::vector<uint16_t> decoded =
+      String16WireRepToHost(tokenizer.GetString16WireRep());
   EXPECT_THAT(decoded, ElementsAreArray(two_fifty));
-  EXPECT_TRUE(encoded_bytes.empty());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
-TEST(EncodeDecodeUTF16StringTest, ErrorCases) {
+TEST(EncodeDecodeString16Test, ErrorCases) {
   struct TestCase {
     std::vector<uint8_t> data;
     std::string msg;
   };
   std::vector<TestCase> tests{
-      {TestCase{{0}, "we require major type 2 (but it's 0)"},
-       TestCase{{2 << 5 | 1, 'a'},
+      {TestCase{{2 << 5 | 1, 'a'},
                 "length must be divisible by 2 (but it's 1)"},
        TestCase{{2 << 5 | 29}, "additional info = 29 isn't recognized"}}};
   for (const TestCase& test : tests) {
     SCOPED_TRACE(test.msg);
-    std::vector<uint16_t> decoded;
-    span<uint8_t> encoded_bytes(&test.data[0], test.data.size());
-    EXPECT_FALSE(DecodeUTF16String(&encoded_bytes, &decoded));
-    EXPECT_TRUE(decoded.empty());
-    EXPECT_EQ(test.data.size(), size_t(encoded_bytes.size()));
+    CBORTokenizer tokenizer(span<uint8_t>(&test.data[0], test.data.size()));
+    EXPECT_EQ(CBORTokenTag::ERROR, tokenizer.TokenTag());
+    EXPECT_EQ(Error::CBOR_INVALID_STRING16, tokenizer.Status().error);
   }
 }
 
-TEST(EncodeDecode8StringTest, RoundtripsHelloWorld) {
+//
+// EncodeString8 / CBORTokenTag::STRING8
+//
+TEST(EncodeDecodeString8Test, RoundtripsHelloWorld) {
   // This roundtrips the hello world message which is given here in utf8
   // characters. 🌎 is a four byte utf8 character.
   std::string utf8_msg = "Hello, 🌎.";
   std::vector<uint8_t> msg(utf8_msg.begin(), utf8_msg.end());
   std::vector<uint8_t> encoded;
-  EncodeUTF8String(span<uint8_t>(msg.data(), msg.size()), &encoded);
-  // This will be encoded as BYTE_STRING of length 20, so the 20 is encoded in
-  // the additional info part of the initial byte. Payload is two bytes for each
-  // UTF16 character.
+  EncodeString8(span<uint8_t>(msg.data(), msg.size()), &encoded);
+  // This will be encoded as STRING of length 12, so the 12 is encoded in
+  // the additional info part of the initial byte. Payload is one byte per
+  // utf8 byte.
   uint8_t initial_byte = /*major type=*/3 << 5 | /*additional info=*/12;
   std::array<uint8_t, 13> encoded_expected = {{initial_byte, 'H', 'e', 'l', 'l',
                                                'o', ',', ' ', 0xF0, 0x9f, 0x8c,
@@ -295,13 +316,18 @@ TEST(EncodeDecode8StringTest, RoundtripsHelloWorld) {
   EXPECT_THAT(encoded, ElementsAreArray(encoded_expected));
 
   // Now decode to complete the roundtrip.
-  std::vector<uint8_t> decoded;
-  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeUTF8String(&encoded_bytes, &decoded));
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::STRING8, tokenizer.TokenTag());
+  std::vector<uint8_t> decoded(tokenizer.GetString8().begin(),
+                               tokenizer.GetString8().end());
   EXPECT_THAT(decoded, ElementsAreArray(msg));
-  EXPECT_TRUE(encoded_bytes.empty());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
+//
+// EncodeBinary / CBORTokenTag::BINARY
+//
 TEST(EncodeDecodeBinaryTest, RoundtripsHelloWorld) {
   std::vector<uint8_t> binary = {'H', 'e', 'l', 'l', 'o', ',', ' ',
                                  'w', 'o', 'r', 'l', 'd', '.'};
@@ -315,19 +341,27 @@ TEST(EncodeDecodeBinaryTest, RoundtripsHelloWorld) {
            (2 << 5 | 13),  // BYTE_STRING (type 2) of length 13
            'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '.'}}));
   std::vector<uint8_t> decoded;
-  span<uint8_t> encoded_bytes = span<uint8_t>(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeBinary(&encoded_bytes, &decoded));
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::BINARY, tokenizer.TokenTag());
+  EXPECT_EQ(0, int(tokenizer.Status().error));
+  decoded = std::vector<uint8_t>(tokenizer.GetBinary().begin(),
+                                 tokenizer.GetBinary().end());
   EXPECT_THAT(decoded, ElementsAreArray(binary));
-  EXPECT_TRUE(encoded_bytes.empty());
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
+//
+// EncodeDouble / CBORTokenTag::DOUBLE
+//
 TEST(EncodeDecodeDoubleTest, RoundtripsWikipediaExample) {
   // https://en.wikipedia.org/wiki/Double-precision_floating-point_format
   // provides the example of a hex representation 3FD5 5555 5555 5555, which
   // approximates 1/3.
 
+  const double kOriginalValue = 1.0 / 3;
   std::vector<uint8_t> encoded;
-  EncodeDouble(1.0 / 3, &encoded);
+  EncodeDouble(kOriginalValue, &encoded);
   // first three bits: major type = 7; remaining five bits: additional info =
   // value 27. This is followed by 8 bytes of payload (which match Wikipedia).
   EXPECT_THAT(
@@ -335,13 +369,12 @@ TEST(EncodeDecodeDoubleTest, RoundtripsWikipediaExample) {
       ElementsAreArray(std::array<uint8_t, 9>{
           {7 << 5 | 27, 0x3f, 0xd5, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55}}));
 
-  // Now the reverse direction: decode the encoded empty string and store it
-  // into decoded.
-  double decoded = 0;
-  span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-  EXPECT_TRUE(DecodeDouble(&encoded_bytes, &decoded));
-  EXPECT_THAT(decoded, testing::DoubleEq(1.0 / 3));
-  EXPECT_TRUE(encoded_bytes.empty());
+  // Reverse direction: decode and compare with original value.
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::DOUBLE, tokenizer.TokenTag());
+  EXPECT_THAT(tokenizer.GetDouble(), testing::DoubleEq(kOriginalValue));
+  tokenizer.Next();
+  EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
 TEST(EncodeDecodeDoubleTest, RoundtripsAdditionalExamples) {
@@ -357,39 +390,39 @@ TEST(EncodeDecodeDoubleTest, RoundtripsAdditionalExamples) {
     SCOPED_TRACE(base::StringPrintf("example %lf", example));
     std::vector<uint8_t> encoded;
     EncodeDouble(example, &encoded);
-    double decoded = 0;
     span<uint8_t> encoded_bytes(&encoded[0], encoded.size());
-    EXPECT_TRUE(DecodeDouble(&encoded_bytes, &decoded));
-    if (std::isnan(example)) {
-      EXPECT_TRUE(std::isnan(decoded));
-    } else {
-      EXPECT_THAT(decoded, testing::DoubleEq(example));
-    }
-    EXPECT_TRUE(encoded_bytes.empty());
+    CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+    EXPECT_EQ(CBORTokenTag::DOUBLE, tokenizer.TokenTag());
+    if (std::isnan(example))
+      EXPECT_TRUE(std::isnan(tokenizer.GetDouble()));
+    else
+      EXPECT_THAT(tokenizer.GetDouble(), testing::DoubleEq(example));
+    tokenizer.Next();
+    EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
   }
 }
 
+//
+// NewJsonToCBOREncoder
+//
 void EncodeSevenBitStringForTest(const std::string& key,
                                  std::vector<uint8_t>* out) {
-  for (char c : key) assert(c > 0);
-  EncodeUTF8String(
+  for (char c : key) assert(c > 0);  // Enforce 7 bits. Sadly, char is signed.
+  EncodeString8(
       span<uint8_t>(reinterpret_cast<const uint8_t*>(key.data()), key.size()),
       out);
 }
 
 TEST(JsonToCborEncoderTest, SevenBitStrings) {
-  // When a string can be represented as 7 bit ascii, the encoder will use the
+  // When a string can be represented as 7 bit ASCII, the encoder will use the
   // STRING (major Type 3) type, so the actual characters end up as bytes on the
   // wire.
   std::vector<uint8_t> encoded;
   Status status;
   std::unique_ptr<JsonParserHandler> encoder =
       NewJsonToCBOREncoder(&encoded, &status);
-  std::vector<uint16_t> utf16;
-  utf16.push_back('f');
-  utf16.push_back('o');
-  utf16.push_back('o');
-  encoder->HandleString(utf16);
+  std::vector<uint16_t> utf16 = {'f', 'o', 'o'};
+  encoder->HandleString16(utf16);
   EXPECT_EQ(Error::OK, status.error);
   // Here we assert that indeed, seven bit strings are represented as
   // bytes on the wire, "foo" is just "foo".
@@ -423,7 +456,7 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   EncodeSevenBitStringForTest("string", &expected);
   // This is followed by the encoded string for "Hello, 🌎."
   // So, it's the same bytes that we tested above in
-  // EncodeDecodeUTF16StringTest.RoundtripsHelloWorld.
+  // EncodeDecodeString16Test.RoundtripsHelloWorld.
   expected.push_back(/*major type=*/2 << 5 | /*additional info=*/20);
   for (uint8_t ch : std::array<uint8_t, 20>{
            {'H', 0, 'e', 0, 'l',  0,    'l',  0,    'o', 0,
@@ -432,9 +465,9 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   EncodeSevenBitStringForTest("double", &expected);
   EncodeDouble(3.1415, &expected);
   EncodeSevenBitStringForTest("int", &expected);
-  EncodeUnsigned(1, &expected);
+  EncodeInt32(1, &expected);
   EncodeSevenBitStringForTest("negative int", &expected);
-  internal::EncodeNegative(-1, &expected);
+  EncodeInt32(-1, &expected);
   EncodeSevenBitStringForTest("bool", &expected);
   expected.push_back(7 << 5 | 21);  // RFC 7049 Section 2.3, Table 2: true
   EncodeSevenBitStringForTest("null", &expected);
@@ -495,7 +528,7 @@ TEST(JsonToCborEncoderTest, HelloWorldBinary_WithTripToJson) {
       NewJsonToCBOREncoder(&encoded, &status);
   encoder->HandleObjectBegin();
   // Emit a key.
-  encoder->HandleString(std::vector<uint16_t>{'f', 'o', 'o'});
+  encoder->HandleString16(std::vector<uint16_t>{'f', 'o', 'o'});
   // Emit the binary payload, an arbitrary array of bytes that happens to
   // be the ascii message "Hello, world.".
   encoder->HandleBinary(std::vector<uint8_t>{'H', 'e', 'l', 'l', 'o', ',', ' ',
@@ -509,10 +542,14 @@ TEST(JsonToCborEncoderTest, HelloWorldBinary_WithTripToJson) {
       NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
   ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ(Status::npos(), status.pos);
   // "Hello, world." in base64 is "SGVsbG8sIHdvcmxkLg==".
   EXPECT_EQ("{\"foo\":\"SGVsbG8sIHdvcmxkLg==\"}", decoded);
 }
 
+//
+// ParseCBOR
+//
 TEST(ParseCBORTest, ParseEmptyCBORMessage) {
   // Just an indefinite length map that's empty (0xff = stop byte).
   std::vector<uint8_t> in = {0xbf, 0xff};
@@ -803,13 +840,34 @@ TEST(ParseCBORTest, InvalidSignedError) {
   int64_t error_pos = bytes.size();
   // uint64_t max is a perfectly fine value to encode as CBOR unsigned,
   // but we don't support this since we only cover the int32_t range.
-  EncodeUnsigned(std::numeric_limits<uint64_t>::max(), &bytes);
+  cbor_internals::WriteTokenStart(cbor_internals::MajorType::UNSIGNED,
+                                  std::numeric_limits<uint64_t>::max(), &bytes);
   std::string out;
   Status status;
   std::unique_ptr<JsonParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
-  EXPECT_EQ(Error::CBOR_INVALID_SIGNED, status.error);
+  EXPECT_EQ(Error::CBOR_INVALID_INT32, status.error);
+  EXPECT_EQ(error_pos, status.pos);
+  EXPECT_EQ("", out);
+}
+
+TEST(ParseCBORTest, TrailingJunk) {
+  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  EncodeSevenBitStringForTest("key", &bytes);
+  EncodeSevenBitStringForTest("value", &bytes);
+  bytes.push_back(0xff);  // Up to here, it's a perfectly fine msg.
+  int64_t error_pos = bytes.size();
+  EncodeSevenBitStringForTest("trailing junk", &bytes);
+
+  cbor_internals::WriteTokenStart(cbor_internals::MajorType::UNSIGNED,
+                                  std::numeric_limits<uint64_t>::max(), &bytes);
+  std::string out;
+  Status status;
+  std::unique_ptr<JsonParserHandler> json_writer =
+      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ(Error::CBOR_TRAILING_JUNK, status.error);
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }

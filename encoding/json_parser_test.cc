@@ -22,7 +22,7 @@ class Log : public JsonParserHandler {
 
   void HandleArrayEnd() override { log_ << "array end\n"; }
 
-  void HandleString(std::vector<uint16_t> chars) override {
+  void HandleString16(std::vector<uint16_t> chars) override {
     base::StringPiece16 foo(reinterpret_cast<const base::char16*>(chars.data()),
                             chars.size());
     log_ << "string: " << base::UTF16ToUTF8(foo) << "\n";
@@ -38,7 +38,7 @@ class Log : public JsonParserHandler {
     log_ << "double: " << value << "\n";
   }
 
-  void HandleInt(int32_t value) override { log_ << "int: " << value << "\n"; }
+  void HandleInt32(int32_t value) override { log_ << "int: " << value << "\n"; }
 
   void HandleBool(bool value) override { log_ << "bool: " << value << "\n"; }
 

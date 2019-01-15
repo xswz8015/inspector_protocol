@@ -118,7 +118,7 @@ class Writer : public JsonParserHandler {
     out_->append("]");
   }
 
-  void HandleString(std::vector<uint16_t> chars) override {
+  void HandleString16(std::vector<uint16_t> chars) override {
     if (!status_->ok()) return;
     state_.top().StartElement(out_);
     out_->append("\"");
@@ -175,7 +175,7 @@ class Writer : public JsonParserHandler {
     out_->append(chars);
   }
 
-  void HandleInt(int32_t value) override {
+  void HandleInt32(int32_t value) override {
     if (!status_->ok()) return;
     state_.top().StartElement(out_);
     out_->append(std::to_string(value));

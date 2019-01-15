@@ -453,7 +453,7 @@ class JsonParser {
         if (value >= std::numeric_limits<int32_t>::min() &&
             value <= std::numeric_limits<int32_t>::max() &&
             static_cast<int32_t>(value) == value)
-          handler_->HandleInt(static_cast<int32_t>(value));
+          handler_->HandleInt32(static_cast<int32_t>(value));
         else
           handler_->HandleDouble(value);
         break;
@@ -465,7 +465,7 @@ class JsonParser {
           HandleError(Error::JSON_PARSER_INVALID_STRING, token_start);
           return;
         }
-        handler_->HandleString(std::move(value));
+        handler_->HandleString16(std::move(value));
         break;
       }
       case ArrayBegin: {
@@ -511,7 +511,7 @@ class JsonParser {
             HandleError(Error::JSON_PARSER_INVALID_STRING, token_start);
             return;
           }
-          handler_->HandleString(std::move(key));
+          handler_->HandleString16(std::move(key));
           start = token_end;
 
           token = ParseToken(start, end, &token_start, &token_end);
