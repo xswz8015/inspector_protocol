@@ -48,7 +48,7 @@ const char* {{type.id}}::{{property.name | to_title_case}}Enum::{{literal | dash
     {% endfor %}
     {% if not (type.type == "object") or not ("properties" in type) %}{% continue %}{% endif %}
 
-std::unique_ptr<{{type.id}}> {{type.id}}::fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+std::unique_ptr<{{type.id}}> {{type.id}}::fromValue(protocol::Value* value, ErrorSupport* errors)
 {
     if (!value || value->type() != protocol::Value::TypeObject) {
         errors->addError("object expected");
@@ -56,18 +56,18 @@ std::unique_ptr<{{type.id}}> {{type.id}}::fromValue(std::unique_ptr<protocol::Va
     }
 
     std::unique_ptr<{{type.id}}> result(new {{type.id}}());
-    std::unique_ptr<protocol::DictionaryValue> object = DictionaryValue::cast(std::move(value));
+    protocol::DictionaryValue* object = DictionaryValue::cast(value);
     errors->push();
     {% for property in type.properties %}
-    std::unique_ptr<protocol::Value> {{property.name}}Value = object->take("{{property.name}}");
+    protocol::Value* {{property.name}}Value = object->get("{{property.name}}");
       {% if property.optional %}
     if ({{property.name}}Value) {
         errors->setName("{{property.name}}");
-        result->m_{{property.name}} = ValueConversions<{{protocol.resolve_type(property).raw_type}}>::fromValue(std::move({{property.name}}Value), errors);
+        result->m_{{property.name}} = ValueConversions<{{protocol.resolve_type(property).raw_type}}>::fromValue({{property.name}}Value, errors);
     }
       {% else %}
     errors->setName("{{property.name}}");
-    result->m_{{property.name}} = ValueConversions<{{protocol.resolve_type(property).raw_type}}>::fromValue(std::move({{property.name}}Value), errors);
+    result->m_{{property.name}} = ValueConversions<{{protocol.resolve_type(property).raw_type}}>::fromValue({{property.name}}Value, errors);
       {% endif %}
     {% endfor %}
     errors->pop();
@@ -76,7 +76,7 @@ std::unique_ptr<{{type.id}}> {{type.id}}::fromValue(std::unique_ptr<protocol::Va
     return result;
 }
 
-std::unique_ptr<protocol::DictionaryValue> {{type.id}}::takeValue()
+std::unique_ptr<protocol::DictionaryValue> {{type.id}}::toValue() const
 {
     std::unique_ptr<protocol::DictionaryValue> result = DictionaryValue::create();
     {% for property in type.properties %}
@@ -84,19 +84,24 @@ std::unique_ptr<protocol::DictionaryValue> {{type.id}}::takeValue()
       {% set property_field = "m_" + property.name %}
       {% if property.optional %}
     if ({{property_field}}.isJust())
-        result->setValue("{{property.name}}", ValueConversions<{{property_type.raw_type}}>::toValue({{property_field}}.takeJust()));
+        result->setValue("{{property.name}}", ValueConversions<{{property_type.raw_type}}>::toValue({{property_field}}.fromJust()));
       {% else %}
-    result->setValue("{{property.name}}", ValueConversions<{{property_type.raw_type}}>::toValue({{property_type.to_pass_type % property_field}}));
+    result->setValue("{{property.name}}", ValueConversions<{{property_type.raw_type}}>::toValue({{property_type.to_raw_type % property_field}}));
       {% endif %}
     {% endfor %}
     return result;
 }
 
+std::unique_ptr<{{type.id}}> {{type.id}}::clone() const
+{
+    ErrorSupport errors;
+    return fromValue(toValue().get(), &errors);
+}
     {% if protocol.is_exported(domain.domain, type.id) %}
 
-{{config.exported.string_out}} {{type.id}}::takeJSONString()
+{{config.exported.string_out}} {{type.id}}::toJSONString() const
 {
-    String json = takeValue()->serialize();
+    String json = toValue()->serialize();
     return {{config.exported.to_string_out % "json"}};
 }
 
@@ -107,7 +112,7 @@ std::unique_ptr<API::{{type.id}}> API::{{type.id}}::fromJSONString(const {{confi
     std::unique_ptr<Value> value = StringUtil::parseJSON(json);
     if (!value)
         return nullptr;
-    return protocol::{{domain.domain}}::{{type.id}}::fromValue(std::move(value), &errors);
+    return protocol::{{domain.domain}}::{{type.id}}::fromValue(value.get(), &errors);
 }
     {% endif %}
   {% endfor %}
@@ -260,9 +265,9 @@ public:
           {% for parameter in command.returns %}
             {% if "optional" in parameter %}
         if ({{parameter.name}}.isJust())
-            resultObject->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue({{parameter.name}}.takeJust()));
+            resultObject->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue({{parameter.name}}.fromJust()));
            {% else %}
-        resultObject->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue({{protocol.resolve_type(parameter).to_pass_type % parameter.name}}));
+        resultObject->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue({{protocol.resolve_type(parameter).to_raw_type % parameter.name}}));
             {% endif %}
           {% endfor %}
         sendIfActive(std::move(resultObject), DispatchResponse::OK());
@@ -285,20 +290,20 @@ void DispatcherImpl::{{command.name}}(int callId, const String& method, const St
 {
     {% if "parameters" in command %}
     // Prepare input parameters.
-    std::unique_ptr<protocol::DictionaryValue> object = DictionaryValue::cast(requestMessageObject->take("params"));
+    protocol::DictionaryValue* object = DictionaryValue::cast(requestMessageObject->get("params"));
     errors->push();
       {% for parameter in command.parameters %}
         {% set parameter_type = protocol.resolve_type(parameter) %}
-    std::unique_ptr<protocol::Value> {{parameter.name}}Value = object ? object->take("{{parameter.name}}") : nullptr;
+    protocol::Value* {{parameter.name}}Value = object ? object->get("{{parameter.name}}") : nullptr;
         {% if parameter.optional %}
     Maybe<{{parameter_type.raw_type}}> in_{{parameter.name}};
     if ({{parameter.name}}Value) {
         errors->setName("{{parameter.name}}");
-        in_{{parameter.name}} = ValueConversions<{{parameter_type.raw_type}}>::fromValue(std::move({{parameter.name}}Value), errors);
+        in_{{parameter.name}} = ValueConversions<{{parameter_type.raw_type}}>::fromValue({{parameter.name}}Value, errors);
     }
         {% else %}
     errors->setName("{{parameter.name}}");
-    {{parameter_type.type}} in_{{parameter.name}} = ValueConversions<{{parameter_type.raw_type}}>::fromValue(std::move({{parameter.name}}Value), errors);
+    {{parameter_type.type}} in_{{parameter.name}} = ValueConversions<{{parameter_type.raw_type}}>::fromValue({{parameter.name}}Value, errors);
         {% endif %}
       {% endfor %}
     errors->pop();
@@ -345,9 +350,9 @@ void DispatcherImpl::{{command.name}}(int callId, const String& method, const St
         {% for parameter in command.returns %}
           {% if "optional" in parameter %}
         if (out_{{parameter.name}}.isJust())
-            result->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue(out_{{parameter.name}}.takeJust()));
+            result->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue(out_{{parameter.name}}.fromJust()));
           {% else %}
-        result->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue({{protocol.resolve_type(parameter).to_pass_type % ("out_" + parameter.name)}}));
+        result->setValue("{{parameter.name}}", ValueConversions<{{protocol.resolve_type(parameter).raw_type}}>::toValue({{protocol.resolve_type(parameter).to_raw_type % ("out_" + parameter.name)}}));
           {% endif %}
         {% endfor %}
     }

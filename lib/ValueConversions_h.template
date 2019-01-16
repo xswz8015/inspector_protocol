@@ -15,20 +15,25 @@ namespace {{namespace}} {
 
 template<typename T>
 struct ValueConversions {
-    static std::unique_ptr<T> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static std::unique_ptr<T> fromValue(protocol::Value* value, ErrorSupport* errors)
     {
-        return T::fromValue(std::move(value), errors);
+        return T::fromValue(value, errors);
     }
 
-    static std::unique_ptr<protocol::Value> toValue(std::unique_ptr<T> value)
+    static std::unique_ptr<protocol::Value> toValue(T* value)
     {
-        return value->takeValue();
+        return value->toValue();
+    }
+
+    static std::unique_ptr<protocol::Value> toValue(const std::unique_ptr<T>& value)
+    {
+        return value->toValue();
     }
 };
 
 template<>
 struct ValueConversions<bool> {
-    static bool fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static bool fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         bool result = false;
         bool success = value ? value->asBoolean(&result) : false;
@@ -45,7 +50,7 @@ struct ValueConversions<bool> {
 
 template<>
 struct ValueConversions<int> {
-    static int fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static int fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         int result = 0;
         bool success = value ? value->asInteger(&result) : false;
@@ -62,7 +67,7 @@ struct ValueConversions<int> {
 
 template<>
 struct ValueConversions<double> {
-    static double fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static double fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         double result = 0;
         bool success = value ? value->asDouble(&result) : false;
@@ -79,10 +84,10 @@ struct ValueConversions<double> {
 
 template<>
 struct ValueConversions<String> {
-    static String fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static String fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         String result;
-        bool success = value ? value->takeString(&result) : false;
+        bool success = value ? value->asString(&result) : false;
         if (!success)
             errors->addError("string value expected");
         return result;
@@ -96,10 +101,10 @@ struct ValueConversions<String> {
 
 template<>
 struct ValueConversions<Binary> {
-    static Binary fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static Binary fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         String result;
-        bool success = value ? value->takeString(&result) : false;
+        bool success = value ? value->asString(&result) : false;
         if (!success) {
             errors->addError("string value expected");
             return Binary();
@@ -118,7 +123,7 @@ struct ValueConversions<Binary> {
 
 template<>
 struct ValueConversions<Value> {
-    static std::unique_ptr<Value> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static std::unique_ptr<Value> fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         bool success = !!value;
         if (!success) {
@@ -128,41 +133,56 @@ struct ValueConversions<Value> {
         return value->clone();
     }
 
-    static std::unique_ptr<protocol::Value> toValue(std::unique_ptr<Value> value)
+    static std::unique_ptr<protocol::Value> toValue(Value* value)
     {
-        return value;
+        return value->clone();
+    }
+
+    static std::unique_ptr<protocol::Value> toValue(const std::unique_ptr<Value>& value)
+    {
+        return value->clone();
     }
 };
 
 template<>
 struct ValueConversions<DictionaryValue> {
-    static std::unique_ptr<DictionaryValue> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static std::unique_ptr<DictionaryValue> fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         bool success = value && value->type() == protocol::Value::TypeObject;
         if (!success)
             errors->addError("object expected");
-        return DictionaryValue::cast(std::move(value));
+        return DictionaryValue::cast(value->clone());
     }
 
-    static std::unique_ptr<protocol::Value> toValue(std::unique_ptr<DictionaryValue> value)
+    static std::unique_ptr<protocol::Value> toValue(DictionaryValue* value)
     {
-        return value;
+        return value->clone();
+    }
+
+    static std::unique_ptr<protocol::Value> toValue(const std::unique_ptr<DictionaryValue>& value)
+    {
+        return value->clone();
     }
 };
 
 template<>
 struct ValueConversions<ListValue> {
-    static std::unique_ptr<ListValue> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static std::unique_ptr<ListValue> fromValue(protocol::Value* value, ErrorSupport* errors)
     {
         bool success = value && value->type() == protocol::Value::TypeArray;
         if (!success)
             errors->addError("list expected");
-        return ListValue::cast(std::move(value));
+        return ListValue::cast(value->clone());
     }
 
-    static std::unique_ptr<protocol::Value> toValue(std::unique_ptr<ListValue> value)
+    static std::unique_ptr<protocol::Value> toValue(ListValue* value)
     {
-        return value;
+        return value->clone();
+    }
+
+    static std::unique_ptr<protocol::Value> toValue(const std::unique_ptr<ListValue>& value)
+    {
+        return value->clone();
     }
 };
 

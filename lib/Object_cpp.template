@@ -8,19 +8,25 @@
 namespace {{namespace}} {
 {% endfor %}
 
-std::unique_ptr<Object> Object::fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+std::unique_ptr<Object> Object::fromValue(protocol::Value* value, ErrorSupport* errors)
 {
-    auto dictionary = DictionaryValue::cast(std::move(value));
+    protocol::DictionaryValue* dictionary = DictionaryValue::cast(value);
     if (!dictionary) {
         errors->addError("object expected");
         return nullptr;
     }
-    return std::unique_ptr<Object>(new Object(std::move(dictionary)));
+    dictionary = static_cast<protocol::DictionaryValue*>(dictionary->clone().release());
+    return std::unique_ptr<Object>(new Object(std::unique_ptr<DictionaryValue>(dictionary)));
 }
 
-std::unique_ptr<protocol::DictionaryValue> Object::takeValue()
+std::unique_ptr<protocol::DictionaryValue> Object::toValue() const
 {
-    return DictionaryValue::cast(std::move(m_object));
+    return DictionaryValue::cast(m_object->clone());
+}
+
+std::unique_ptr<Object> Object::clone() const
+{
+    return std::unique_ptr<Object>(new Object(DictionaryValue::cast(m_object->clone())));
 }
 
 Object::Object(std::unique_ptr<protocol::DictionaryValue> object) : m_object(std::move(object)) { }

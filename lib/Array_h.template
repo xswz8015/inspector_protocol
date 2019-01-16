@@ -22,9 +22,9 @@ public:
         return std::unique_ptr<Array<T>>(new Array<T>());
     }
 
-    static std::unique_ptr<Array<T>> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static std::unique_ptr<Array<T>> fromValue(protocol::Value* value, ErrorSupport* errors)
     {
-        auto array = ListValue::cast(std::move(value));
+        protocol::ListValue* array = ListValue::cast(value);
         if (!array) {
             errors->addError("array expected");
             return nullptr;
@@ -33,7 +33,7 @@ public:
         errors->push();
         for (size_t i = 0; i < array->size(); ++i) {
             errors->setName(StringUtil::fromInteger(i));
-            std::unique_ptr<T> item = ValueConversions<T>::fromValue(array->take(i), errors);
+            std::unique_ptr<T> item = ValueConversions<T>::fromValue(array->at(i), errors);
             result->m_vector.push_back(std::move(item));
         }
         errors->pop();
@@ -57,16 +57,11 @@ public:
         return m_vector[index].get();
     }
 
-    std::unique_ptr<T> take(size_t index)
-    {
-        return std::move(m_vector[index]);
-    }
-
-    std::unique_ptr<protocol::ListValue> takeValue()
+    std::unique_ptr<protocol::ListValue> toValue()
     {
         std::unique_ptr<protocol::ListValue> result = ListValue::create();
         for (auto& item : m_vector)
-            result->pushValue(ValueConversions<T>::toValue(std::move(item)));
+            result->pushValue(ValueConversions<T>::toValue(item));
         return result;
     }
 
@@ -82,9 +77,9 @@ public:
         return std::unique_ptr<Array<T>>(new Array<T>());
     }
 
-    static std::unique_ptr<Array<T>> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors)
+    static std::unique_ptr<Array<T>> fromValue(protocol::Value* value, ErrorSupport* errors)
     {
-        auto array = ListValue::cast(std::move(value));
+        protocol::ListValue* array = ListValue::cast(value);
         if (!array) {
             errors->addError("array expected");
             return nullptr;
@@ -93,7 +88,7 @@ public:
         std::unique_ptr<Array<T>> result(new Array<T>());
         for (size_t i = 0; i < array->size(); ++i) {
             errors->setName(StringUtil::fromInteger(i));
-            T item = ValueConversions<T>::fromValue(array->take(i), errors);
+            T item = ValueConversions<T>::fromValue(array->at(i), errors);
             result->m_vector.push_back(item);
         }
         errors->pop();
@@ -117,12 +112,7 @@ public:
         return m_vector[index];
     }
 
-    T take(size_t index)
-    {
-        return m_vector[index];
-    }
-
-    std::unique_ptr<protocol::ListValue> takeValue()
+    std::unique_ptr<protocol::ListValue> toValue()
     {
         std::unique_ptr<protocol::ListValue> result = ListValue::create();
         for (auto& item : m_vector)

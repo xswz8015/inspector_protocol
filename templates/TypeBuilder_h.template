@@ -74,7 +74,7 @@ namespace {{param.name | to_title_case}}Enum {
 class {{config.protocol.export_macro}} {{type.id}} : public Serializable{% if protocol.is_exported(domain.domain, type.id) %}, public API::{{type.id}}{% endif %}{
     PROTOCOL_DISALLOW_COPY({{type.id}});
 public:
-    static std::unique_ptr<{{type.id}}> fromValue(std::unique_ptr<protocol::Value> value, ErrorSupport* errors);
+    static std::unique_ptr<{{type.id}}> fromValue(protocol::Value* value, ErrorSupport* errors);
 
     ~{{type.id}}() override { }
     {% for property in type.properties %}
@@ -99,11 +99,11 @@ public:
     void {{"set" | to_method_case}}{{property_name}}({{property_type.pass_type}} value) { {{property_field}} = {{property_type.to_rvalue % "value"}}; }
     {% endfor %}
 
-    std::unique_ptr<protocol::DictionaryValue> takeValue();
-    String serialize() override { return takeValue()->serialize(); }
+    std::unique_ptr<protocol::DictionaryValue> toValue() const;
+    String serialize() override { return toValue()->serialize(); }
     std::unique_ptr<{{type.id}}> clone() const;
     {% if protocol.is_exported(domain.domain, type.id) %}
-    {{config.exported.string_out}} takeJSONString() override;
+    {{config.exported.string_out}} toJSONString() const override;
     {% endif %}
 
     template<int STATE>
