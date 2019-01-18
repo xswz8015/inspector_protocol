@@ -54,14 +54,14 @@ void EncodeDouble(double value, std::vector<uint8_t>* out);
 // return value to the routines in json_parser.h.  The handler will encode into
 // |out|, and iff an error occurs it will set |status| to an error and clear
 // |out|. Otherwise, |status.ok()| will be |true|.
-std::unique_ptr<JsonParserHandler> NewJsonToCBOREncoder(
+std::unique_ptr<JSONParserHandler> NewJSONToCBOREncoder(
     std::vector<uint8_t>* out, Status* status);
 
 // Parses a CBOR encoded message from |bytes|, sending JSON events to
 // |json_out|. If an error occurs, sends |out->HandleError|, and parsing stops.
 // The client is responsible for discarding the already received information in
 // that case.
-void ParseCBOR(span<uint8_t> bytes, JsonParserHandler* json_out);
+void ParseCBOR(span<uint8_t> bytes, JSONParserHandler* json_out);
 
 // Tags for the tokens within a CBOR message that CBORStream understands.
 // Note that this is not the same terminology as the CBOR spec (RFC 7049),

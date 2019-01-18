@@ -228,9 +228,9 @@ void EncodeDouble(double value, std::vector<uint8_t>* out) {
 }
 
 namespace {
-class JsonToCBOREncoder : public JsonParserHandler {
+class JSONToCBOREncoder : public JSONParserHandler {
  public:
-  JsonToCBOREncoder(std::vector<uint8_t>* out, Status* status)
+  JSONToCBOREncoder(std::vector<uint8_t>* out, Status* status)
       : out_(out), status_(status) {
     *status_ = Status();
   }
@@ -290,22 +290,22 @@ class JsonToCBOREncoder : public JsonParserHandler {
 };
 }  // namespace
 
-std::unique_ptr<JsonParserHandler> NewJsonToCBOREncoder(
+std::unique_ptr<JSONParserHandler> NewJSONToCBOREncoder(
     std::vector<uint8_t>* out, Status* status) {
-  return std::make_unique<JsonToCBOREncoder>(out, status);
+  return std::make_unique<JSONToCBOREncoder>(out, status);
 }
 
 namespace {
 // Below are three parsing routines for CBOR, which cover enough
 // to roundtrip JSON messages.
 bool ParseMap(int32_t stack_depth, CBORTokenizer* tokenizer,
-              JsonParserHandler* out);
+              JSONParserHandler* out);
 bool ParseArray(int32_t stack_depth, CBORTokenizer* tokenizer,
-                JsonParserHandler* out);
+                JSONParserHandler* out);
 bool ParseValue(int32_t stack_depth, CBORTokenizer* tokenizer,
-                JsonParserHandler* out);
+                JSONParserHandler* out);
 
-void ParseUTF16String(CBORTokenizer* tokenizer, JsonParserHandler* out) {
+void ParseUTF16String(CBORTokenizer* tokenizer, JSONParserHandler* out) {
   std::vector<uint16_t> value;
   span<uint8_t> rep = tokenizer->GetString16WireRep();
   for (std::ptrdiff_t ii = 0; ii < rep.size(); ii += 2)
@@ -315,7 +315,7 @@ void ParseUTF16String(CBORTokenizer* tokenizer, JsonParserHandler* out) {
 }
 
 // For now this method only covers US-ASCII. Later, we may allow UTF8.
-bool ParseASCIIString(CBORTokenizer* tokenizer, JsonParserHandler* out) {
+bool ParseASCIIString(CBORTokenizer* tokenizer, JSONParserHandler* out) {
   assert(tokenizer->TokenTag() == CBORTokenTag::STRING8);
   std::vector<uint16_t> value16;
   for (uint8_t ch : tokenizer->GetString8()) {
@@ -334,7 +334,7 @@ bool ParseASCIIString(CBORTokenizer* tokenizer, JsonParserHandler* out) {
 }
 
 bool ParseValue(int32_t stack_depth, CBORTokenizer* tokenizer,
-                JsonParserHandler* out) {
+                JSONParserHandler* out) {
   if (stack_depth > kStackLimit) {
     out->HandleError(
         Status{Error::CBOR_STACK_LIMIT_EXCEEDED, tokenizer->Status().pos});
@@ -394,7 +394,7 @@ bool ParseValue(int32_t stack_depth, CBORTokenizer* tokenizer,
 // ParseArray may only be called after an indefinite length array has been
 // detected.
 bool ParseArray(int32_t stack_depth, CBORTokenizer* tokenizer,
-                JsonParserHandler* out) {
+                JSONParserHandler* out) {
   assert(tokenizer->TokenTag() == CBORTokenTag::ARRAY_START);
   tokenizer->Next();
   out->HandleArrayBegin();
@@ -420,7 +420,7 @@ bool ParseArray(int32_t stack_depth, CBORTokenizer* tokenizer,
 // ParseArray may only be called after an indefinite length array has been
 // detected.
 bool ParseMap(int32_t stack_depth, CBORTokenizer* tokenizer,
-              JsonParserHandler* out) {
+              JSONParserHandler* out) {
   assert(tokenizer->TokenTag() == CBORTokenTag::MAP_START);
   out->HandleObjectBegin();
   tokenizer->Next();
@@ -453,7 +453,7 @@ bool ParseMap(int32_t stack_depth, CBORTokenizer* tokenizer,
 }
 }  // namespace
 
-void ParseCBOR(span<uint8_t> bytes, JsonParserHandler* json_out) {
+void ParseCBOR(span<uint8_t> bytes, JSONParserHandler* json_out) {
   CBORTokenizer tokenizer(bytes);
   if (tokenizer.TokenTag() == CBORTokenTag::DONE) {
     json_out->HandleError(Status{Error::CBOR_NO_INPUT, 0});

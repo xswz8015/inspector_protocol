@@ -19,7 +19,7 @@ std::vector<uint16_t> UTF16String(const std::string& utf8) {
 TEST(JsonStdStringWriterTest, HelloWorld) {
   std::string out;
   Status status;
-  std::unique_ptr<JsonParserHandler> writer =
+  std::unique_ptr<JSONParserHandler> writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   writer->HandleObjectBegin();
   writer->HandleString16(UTF16String("msg1"));
@@ -54,13 +54,13 @@ TEST(JsonStdStringWriterTest, HelloWorld) {
 }
 
 TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
-  // The encoder emits binary submitted to JsonParserHandler::HandleBinary
+  // The encoder emits binary submitted to JSONParserHandler::HandleBinary
   // as base64. The following three examples are taken from
   // https://en.wikipedia.org/wiki/Base64.
   {
     std::string out;
     Status status;
-    std::unique_ptr<JsonParserHandler> writer =
+    std::unique_ptr<JSONParserHandler> writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary({'M', 'a', 'n'});
     EXPECT_TRUE(status.ok());
@@ -69,7 +69,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
   {
     std::string out;
     Status status;
-    std::unique_ptr<JsonParserHandler> writer =
+    std::unique_ptr<JSONParserHandler> writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary({'M', 'a'});
     EXPECT_TRUE(status.ok());
@@ -78,7 +78,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
   {
     std::string out;
     Status status;
-    std::unique_ptr<JsonParserHandler> writer =
+    std::unique_ptr<JSONParserHandler> writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary({'M'});
     EXPECT_TRUE(status.ok());
@@ -87,7 +87,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
   {  // "Hello, world.", verified with base64decode.org.
     std::string out;
     Status status;
-    std::unique_ptr<JsonParserHandler> writer =
+    std::unique_ptr<JSONParserHandler> writer =
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary(
         {'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '.'});
@@ -101,7 +101,7 @@ TEST(JsonStdStringWriterTest, HandlesErrors) {
   // status and clears the output.
   std::string out;
   Status status;
-  std::unique_ptr<JsonParserHandler> writer =
+  std::unique_ptr<JSONParserHandler> writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   writer->HandleObjectBegin();
   writer->HandleString16(UTF16String("msg1"));
@@ -139,7 +139,7 @@ TEST(JsonStdStringWriterTest, DoubleToString) {
 
   std::string out;
   Status status;
-  std::unique_ptr<JsonParserHandler> writer =
+  std::unique_ptr<JSONParserHandler> writer =
       NewJsonWriter(&platform, &out, &status);
   writer->HandleArrayBegin();
   writer->HandleDouble(.1);
