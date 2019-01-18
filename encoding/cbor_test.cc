@@ -5,6 +5,7 @@
 #include "cbor.h"
 
 #include <array>
+#include <cmath>
 #include <string>
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"

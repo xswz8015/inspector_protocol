@@ -8,6 +8,8 @@
 # tree. This file also declares tests of the setup, which are useful
 # when upgrading gtest / gmock to new versions (see the DEPS file).
 
+import("//testing/test.gni")
+
 config("gtest_private_config") {
   visibility = [ ":*" ]
   include_dirs = [ "gtest/googletest" ]

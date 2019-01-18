@@ -62,10 +62,3 @@ set_defaults("shared_library") {
 set_defaults("test") {
   configs = _default_executable_configs
 }
-
-template("test") {
-  executable(target_name) {
-    testonly = true
-    forward_variables_from(invoker, "*")
-  }
-}

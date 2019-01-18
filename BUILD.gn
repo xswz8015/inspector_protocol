@@ -5,6 +5,8 @@
 # All build targets below are experimental and not used within the
 # Chromium / V8 / etc. trees yet thus far. Do not depend on anything.
 
+import("//testing/test.gni")
+
 static_library("json_parser") {
   sources = [
     "encoding/json_parser.cc",
@@ -31,10 +33,10 @@ test("json_parser_test") {
   deps = [
     ":json_parser",
     ":linux_dev_platform",
-    "//testing:gtest_main",
-    "//third_party/gtest:gmock",
-    "//third_party/gtest:gtest",
-    "//third_party/mini_chromium/mini_chromium/base",
+    "//base",
+    "//testing/gmock:gmock",
+    "//testing/gtest:gtest",
+    "//testing/gtest:gtest_main",
   ]
 }
 
@@ -59,10 +61,10 @@ test("cbor_test") {
     ":cbor",
     ":json_std_string_writer",
     ":linux_dev_platform",
-    "//testing:gtest_main",
-    "//third_party/gtest:gmock",
-    "//third_party/gtest:gtest",
-    "//third_party/mini_chromium/mini_chromium/base",
+    "//base",
+    "//testing/gmock:gmock",
+    "//testing/gtest:gtest",
+    "//testing/gtest:gtest_main",
   ]
 }
 
@@ -72,10 +74,10 @@ test("span_test") {
     "encoding/span_test.cc",
   ]
   deps = [
-    "//testing:gtest_main",
-    "//third_party/gtest:gmock",
-    "//third_party/gtest:gtest",
-    "//third_party/mini_chromium/mini_chromium/base",
+    "//base",
+    "//testing/gmock:gmock",
+    "//testing/gtest:gtest",
+    "//testing/gtest:gtest_main",
   ]
 }
 
@@ -94,9 +96,9 @@ test("json_std_string_writer_test") {
   deps = [
     ":json_std_string_writer",
     ":linux_dev_platform",
-    "//testing:gtest_main",
-    "//third_party/gtest:gmock",
-    "//third_party/gtest:gtest",
-    "//third_party/mini_chromium/mini_chromium/base",
+    "//base",
+    "//testing/gmock:gmock",
+    "//testing/gtest:gtest",
+    "//testing/gtest:gtest_main",
   ]
 }
