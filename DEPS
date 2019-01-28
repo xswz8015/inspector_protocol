@@ -23,7 +23,7 @@ deps = {
     # The toolchain definitions (clang C++ compiler etc.)
     'src/third_party/mini_chromium/mini_chromium':
         Var('chromium_git') + '/chromium/mini_chromium@' +
-        'd2c271a0671f81db24bce69631ba99d0c26f3a5b',
+        '737433ebade4d446643c6c07daae02a67e8decca',
     # For writing unittests.
     'src/third_party/gtest/gtest':
         Var('chromium_git') + '/external/github.com/google/googletest@' +
