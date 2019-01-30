@@ -452,7 +452,11 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   span<uint8_t> ascii_in(reinterpret_cast<const uint8_t*>(json.data()),
                          json.size());
   ParseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
-  std::vector<uint8_t> expected;
+  std::vector<uint8_t> expected = {
+      0xd8,            // envelope
+      0x5a,            // byte string with 32 bit length
+      0,    0, 0, 94,  // length is 94 bytes
+  };
   expected.push_back(0xbf);  // indef length map start
   EncodeSevenBitStringForTest("string", &expected);
   // This is followed by the encoded string for "Hello, 🌎."
@@ -474,6 +478,11 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   EncodeSevenBitStringForTest("null", &expected);
   expected.push_back(7 << 5 | 22);  // RFC 7049 Section 2.3, Table 2: null
   EncodeSevenBitStringForTest("array", &expected);
+  expected.push_back(0xd8);  // envelope
+  expected.push_back(0x5a);  // byte string with 32 bit length
+  // the length is 5 bytes (that's up to end indef length array below).
+  for (uint8_t ch : std::array<uint8_t, 4>{{0, 0, 0, 5}})
+    expected.push_back(ch);
   expected.push_back(0x9f);  // RFC 7049 Section 2.2.1, indef length array start
   expected.push_back(1);     // Three UNSIGNED values (easy since Major Type 0)
   expected.push_back(2);
@@ -552,8 +561,10 @@ TEST(JSONToCBOREncoderTest, HelloWorldBinary_WithTripToJson) {
 // ParseCBOR
 //
 TEST(ParseCBORTest, ParseEmptyCBORMessage) {
-  // Just an indefinite length map that's empty (0xff = stop byte).
-  std::vector<uint8_t> in = {0xbf, 0xff};
+  // An envelope starting with 0xd8, 0x5a, with the byte length
+  // of 2, containing a map that's empty (0xbf for map
+  // start, and 0xff for map end).
+  std::vector<uint8_t> in = {0xd8, 0x5a, 0, 0, 0, 2, 0xbf, 0xff};
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -564,8 +575,8 @@ TEST(ParseCBORTest, ParseEmptyCBORMessage) {
 }
 
 TEST(ParseCBORTest, ParseCBORHelloWorld) {
-  std::vector<uint8_t> bytes;
-
+  const uint8_t kPayloadLen = 27;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen};
   bytes.push_back(0xbf);                       // start indef length map.
   EncodeSevenBitStringForTest("msg", &bytes);  // key: msg
   // Now write the value, the familiar "Hello, 🌎." where the globe is expressed
@@ -576,6 +587,7 @@ TEST(ParseCBORTest, ParseCBORHelloWorld) {
             ',', 0, ' ', 0, 0x3c, 0xd8, 0x0e, 0xdf, '.', 0}})
     bytes.push_back(ch);
   bytes.push_back(0xff);  // stop byte
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
 
   std::string out;
   Status status;
@@ -599,8 +611,8 @@ TEST(ParseCBORTest, NoInputError) {
 
 TEST(ParseCBORTest, InvalidStartByteError) {
   // Here we test that some actual json, which usually starts with {,
-  // is not considered CBOR. CBOR messages must start with 0xbf, the
-  // indefinite length map start byte.
+  // is not considered CBOR. CBOR messages must start with 0x5a, the
+  // envelope start byte.
   std::string json = "{\"msg\": \"Hello, world.\"}";
   std::string out;
   Status status;
@@ -614,8 +626,11 @@ TEST(ParseCBORTest, InvalidStartByteError) {
 }
 
 TEST(ParseCBORTest, UnexpectedEofExpectedValueError) {
-  std::vector<uint8_t> bytes = {0xbf};         // The byte for starting a map.
+  constexpr uint8_t kPayloadLen = 5;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);  // A key; so value would be next.
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -627,10 +642,13 @@ TEST(ParseCBORTest, UnexpectedEofExpectedValueError) {
 }
 
 TEST(ParseCBORTest, UnexpectedEofInArrayError) {
-  std::vector<uint8_t> bytes = {0xbf};  // The byte for starting a map.
+  constexpr uint8_t kPayloadLen = 8;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};  // The byte for starting a map.
   EncodeSevenBitStringForTest("array",
                               &bytes);  // A key; so value would be next.
   bytes.push_back(0x9f);  // byte for indefinite length array start.
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -642,40 +660,52 @@ TEST(ParseCBORTest, UnexpectedEofInArrayError) {
 }
 
 TEST(ParseCBORTest, UnexpectedEofInMapError) {
-  std::vector<uint8_t> bytes = {0xbf};  // The byte for starting a map.
+  constexpr uint8_t kPayloadLen = 1;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};  // The byte for starting a map.
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_IN_MAP, status.error);
-  EXPECT_EQ(1, status.pos);
+  EXPECT_EQ(7, status.pos);
   EXPECT_EQ("", out);
 }
 
 TEST(ParseCBORTest, InvalidMapKeyError) {
-  // The byte for starting a map, followed by a byte representing null.
-  // null is not a valid map key.
-  std::vector<uint8_t> bytes = {0xbf, 7 << 5 | 22};
+  constexpr uint8_t kPayloadLen = 2;
+  std::vector<uint8_t> bytes = {0xd8,       0x5a, 0,
+                                0,          0,    kPayloadLen,  // envelope
+                                0xbf,                           // map start
+                                7 << 5 | 22};  // null (not a valid map key)
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
       NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_MAP_KEY, status.error);
-  EXPECT_EQ(1, status.pos);
+  EXPECT_EQ(7, status.pos);
   EXPECT_EQ("", out);
 }
 
 std::vector<uint8_t> MakeNestedCBOR(int depth) {
   std::vector<uint8_t> bytes;
+  std::vector<EnvelopeEncoder> envelopes;
   for (int ii = 0; ii < depth; ++ii) {
+    envelopes.emplace_back();
+    envelopes.back().EncodeStart(&bytes);
     bytes.push_back(0xbf);  // indef length map start
     EncodeSevenBitStringForTest("key", &bytes);
   }
   EncodeSevenBitStringForTest("innermost_value", &bytes);
-  for (int ii = 0; ii < depth; ++ii)
+  for (int ii = 0; ii < depth; ++ii) {
     bytes.push_back(0xff);  // stop byte, finishes map.
+    envelopes.back().EncodeStop(&bytes);
+    envelopes.pop_back();
+  }
   return bytes;
 }
 
@@ -703,9 +733,13 @@ TEST(ParseCBORTest, StackLimitExceededError) {
   }
 
   // We just want to know the length of one opening map so we can compute
-  // where the error is encountered.
-  std::vector<uint8_t> opening_segment = {0xbf};
-  EncodeSevenBitStringForTest("key", &opening_segment);
+  // where the error is encountered. So we look at a small example and find
+  // the second envelope start.
+  std::vector<uint8_t> small_example = MakeNestedCBOR(3);
+  int64_t opening_segment_size = 1;  // Start after the first envelope start.
+  while (opening_segment_size < int64_t(small_example.size()) &&
+         small_example[opening_segment_size] != 0xd8)
+    opening_segment_size++;
 
   {  // Depth 1001: limit exceeded.
     std::vector<uint8_t> bytes = MakeNestedCBOR(1001);
@@ -715,7 +749,7 @@ TEST(ParseCBORTest, StackLimitExceededError) {
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
     ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::CBOR_STACK_LIMIT_EXCEEDED, status.error);
-    EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
+    EXPECT_EQ(opening_segment_size * 1001, status.pos);
   }
   {  // Depth 1200: still limit exceeded, and at the same pos as for 1001
     std::vector<uint8_t> bytes = MakeNestedCBOR(1200);
@@ -725,15 +759,19 @@ TEST(ParseCBORTest, StackLimitExceededError) {
         NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
     ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::CBOR_STACK_LIMIT_EXCEEDED, status.error);
-    EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
+    EXPECT_EQ(opening_segment_size * 1001, status.pos);
   }
 }
 
 TEST(ParseCBORTest, UnsupportedValueError) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 6;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   bytes.push_back(6 << 5 | 5);  // tags aren't supported yet.
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
+
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -745,7 +783,9 @@ TEST(ParseCBORTest, UnsupportedValueError) {
 }
 
 TEST(ParseCBORTest, InvalidString16Error) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 11;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   // a BYTE_STRING of length 5 as value; since we interpret these as string16,
@@ -753,6 +793,7 @@ TEST(ParseCBORTest, InvalidString16Error) {
   // 5 isn't divisible by 2.
   bytes.push_back(2 << 5 | 5);
   for (int ii = 0; ii < 5; ++ii) bytes.push_back(' ');
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -764,12 +805,15 @@ TEST(ParseCBORTest, InvalidString16Error) {
 }
 
 TEST(ParseCBORTest, InvalidString8Error) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 6;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   // a STRING of length 5 as value, but we're at the end of the bytes array
   // so it can't be decoded successfully.
   bytes.push_back(3 << 5 | 5);
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -781,13 +825,16 @@ TEST(ParseCBORTest, InvalidString8Error) {
 }
 
 TEST(ParseCBORTest, String8MustBe7BitError) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 11;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   // a STRING of length 5 as value, with a payload that has bytes outside
   // 7 bit (> 0x7f).
   bytes.push_back(3 << 5 | 5);
   for (int ii = 0; ii < 5; ++ii) bytes.push_back(0xf0);
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -799,7 +846,9 @@ TEST(ParseCBORTest, String8MustBe7BitError) {
 }
 
 TEST(ParseCBORTest, InvalidBinaryError) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 9;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   bytes.push_back(6 << 5 | 22);  // base64 hint for JSON; indicates binary
@@ -807,6 +856,7 @@ TEST(ParseCBORTest, InvalidBinaryError) {
   // Just two garbage bytes, not enough for the binary.
   bytes.push_back(0x31);
   bytes.push_back(0x23);
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -818,13 +868,16 @@ TEST(ParseCBORTest, InvalidBinaryError) {
 }
 
 TEST(ParseCBORTest, InvalidDoubleError) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 8;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   bytes.push_back(7 << 5 | 27);  // initial byte for double
   // Just two garbage bytes, not enough to represent an actual double.
   bytes.push_back(0x31);
   bytes.push_back(0x23);
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -836,13 +889,16 @@ TEST(ParseCBORTest, InvalidDoubleError) {
 }
 
 TEST(ParseCBORTest, InvalidSignedError) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 14;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   int64_t error_pos = bytes.size();
   // uint64_t max is a perfectly fine value to encode as CBOR unsigned,
   // but we don't support this since we only cover the int32_t range.
   cbor_internals::WriteTokenStart(cbor_internals::MajorType::UNSIGNED,
                                   std::numeric_limits<uint64_t>::max(), &bytes);
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
@@ -854,7 +910,9 @@ TEST(ParseCBORTest, InvalidSignedError) {
 }
 
 TEST(ParseCBORTest, TrailingJunk) {
-  std::vector<uint8_t> bytes = {0xbf};  // start indef length map.
+  constexpr uint8_t kPayloadLen = 35;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
   EncodeSevenBitStringForTest("key", &bytes);
   EncodeSevenBitStringForTest("value", &bytes);
   bytes.push_back(0xff);  // Up to here, it's a perfectly fine msg.
@@ -863,6 +921,7 @@ TEST(ParseCBORTest, TrailingJunk) {
 
   cbor_internals::WriteTokenStart(cbor_internals::MajorType::UNSIGNED,
                                   std::numeric_limits<uint64_t>::max(), &bytes);
+  EXPECT_EQ(kPayloadLen, bytes.size() - 6);
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
