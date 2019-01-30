@@ -486,7 +486,7 @@ TEST(JsonCborRoundtrip, EncodingDecoding) {
   // And now we roundtrip, decoding the message we just encoded.
   std::string decoded;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &decoded, &status);
   ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ(json, decoded);
@@ -508,7 +508,7 @@ TEST(JsonCborRoundtrip, MoreRoundtripExamples) {
     ParseJSONChars(GetLinuxDevPlatform(), ascii_in, encoder.get());
     std::string decoded;
     std::unique_ptr<JSONParserHandler> json_writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &decoded, &status);
     ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(json, decoded);
@@ -540,7 +540,7 @@ TEST(JSONToCBOREncoderTest, HelloWorldBinary_WithTripToJson) {
   // Now drive the json writer via the CBOR decoder.
   std::string decoded;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &decoded, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &decoded, &status);
   ParseCBOR(span<uint8_t>(encoded.data(), encoded.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ(Status::npos(), status.pos);
@@ -557,7 +557,7 @@ TEST(ParseCBORTest, ParseEmptyCBORMessage) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(in.data(), in.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ("{}", out);
@@ -580,7 +580,7 @@ TEST(ParseCBORTest, ParseCBORHelloWorld) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::OK, status.error);
   EXPECT_EQ("{\"msg\":\"Hello, \\ud83c\\udf0e.\"}", out);
@@ -591,7 +591,7 @@ TEST(ParseCBORTest, NoInputError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(in.data(), in.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_NO_INPUT, status.error);
   EXPECT_EQ("", out);
@@ -605,7 +605,7 @@ TEST(ParseCBORTest, InvalidStartByteError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(
       span<uint8_t>(reinterpret_cast<const uint8_t*>(json.data()), json.size()),
       json_writer.get());
@@ -619,7 +619,7 @@ TEST(ParseCBORTest, UnexpectedEofExpectedValueError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_EXPECTED_VALUE, status.error);
   EXPECT_EQ(int64_t(bytes.size()), status.pos);
@@ -634,7 +634,7 @@ TEST(ParseCBORTest, UnexpectedEofInArrayError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_IN_ARRAY, status.error);
   EXPECT_EQ(int64_t(bytes.size()), status.pos);
@@ -646,7 +646,7 @@ TEST(ParseCBORTest, UnexpectedEofInMapError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_UNEXPECTED_EOF_IN_MAP, status.error);
   EXPECT_EQ(1, status.pos);
@@ -660,7 +660,7 @@ TEST(ParseCBORTest, InvalidMapKeyError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_MAP_KEY, status.error);
   EXPECT_EQ(1, status.pos);
@@ -685,7 +685,7 @@ TEST(ParseCBORTest, StackLimitExceededError) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> json_writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(Status::npos(), status.pos);
@@ -696,7 +696,7 @@ TEST(ParseCBORTest, StackLimitExceededError) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> json_writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(Status::npos(), status.pos);
@@ -712,7 +712,7 @@ TEST(ParseCBORTest, StackLimitExceededError) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> json_writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::CBOR_STACK_LIMIT_EXCEEDED, status.error);
     EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
@@ -722,7 +722,7 @@ TEST(ParseCBORTest, StackLimitExceededError) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> json_writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
     EXPECT_EQ(Error::CBOR_STACK_LIMIT_EXCEEDED, status.error);
     EXPECT_EQ(int64_t(opening_segment.size()) * 1001, status.pos);
@@ -737,7 +737,7 @@ TEST(ParseCBORTest, UnsupportedValueError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_UNSUPPORTED_VALUE, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -756,7 +756,7 @@ TEST(ParseCBORTest, InvalidString16Error) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_STRING16, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -773,7 +773,7 @@ TEST(ParseCBORTest, InvalidString8Error) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_STRING8, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -791,7 +791,7 @@ TEST(ParseCBORTest, String8MustBe7BitError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_STRING8_MUST_BE_7BIT, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -810,7 +810,7 @@ TEST(ParseCBORTest, InvalidBinaryError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_BINARY, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -828,7 +828,7 @@ TEST(ParseCBORTest, InvalidDoubleError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_DOUBLE, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -846,7 +846,7 @@ TEST(ParseCBORTest, InvalidSignedError) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_INVALID_INT32, status.error);
   EXPECT_EQ(error_pos, status.pos);
@@ -866,7 +866,7 @@ TEST(ParseCBORTest, TrailingJunk) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> json_writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
   EXPECT_EQ(Error::CBOR_TRAILING_JUNK, status.error);
   EXPECT_EQ(error_pos, status.pos);

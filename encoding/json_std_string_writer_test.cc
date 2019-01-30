@@ -20,7 +20,7 @@ TEST(JsonStdStringWriterTest, HelloWorld) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   writer->HandleObjectBegin();
   writer->HandleString16(UTF16String("msg1"));
   writer->HandleString16(UTF16String("Hello, 🌎."));
@@ -61,7 +61,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary({'M', 'a', 'n'});
     EXPECT_TRUE(status.ok());
     EXPECT_EQ("\"TWFu\"", out);
@@ -70,7 +70,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary({'M', 'a'});
     EXPECT_TRUE(status.ok());
     EXPECT_EQ("\"TWE=\"", out);
@@ -79,7 +79,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary({'M'});
     EXPECT_TRUE(status.ok());
     EXPECT_EQ("\"TQ==\"", out);
@@ -88,7 +88,7 @@ TEST(JsonStdStringWriterTest, BinaryEncodedAsJsonString) {
     std::string out;
     Status status;
     std::unique_ptr<JSONParserHandler> writer =
-        NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+        NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
     writer->HandleBinary(
         {'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '.'});
     EXPECT_TRUE(status.ok());
@@ -102,7 +102,7 @@ TEST(JsonStdStringWriterTest, HandlesErrors) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> writer =
-      NewJsonWriter(GetLinuxDevPlatform(), &out, &status);
+      NewJSONWriter(GetLinuxDevPlatform(), &out, &status);
   writer->HandleObjectBegin();
   writer->HandleString16(UTF16String("msg1"));
   writer->HandleError(Status{Error::JSON_PARSER_VALUE_EXPECTED, 42});
@@ -140,7 +140,7 @@ TEST(JsonStdStringWriterTest, DoubleToString) {
   std::string out;
   Status status;
   std::unique_ptr<JSONParserHandler> writer =
-      NewJsonWriter(&platform, &out, &status);
+      NewJSONWriter(&platform, &out, &status);
   writer->HandleArrayBegin();
   writer->HandleDouble(.1);
   writer->HandleDouble(-.7);
