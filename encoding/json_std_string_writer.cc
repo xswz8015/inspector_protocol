@@ -207,7 +207,7 @@ class Writer : public JSONParserHandler {
 };
 }  // namespace
 
-std::unique_ptr<JSONParserHandler> NewJsonWriter(Platform* platform,
+std::unique_ptr<JSONParserHandler> NewJSONWriter(Platform* platform,
                                                  std::string* out,
                                                  Status* status) {
   return std::make_unique<Writer>(platform, out, status);
