@@ -418,7 +418,7 @@ bool ParseValue(int32_t stack_depth, CBORTokenizer* tokenizer,
   if (tokenizer->TokenTag() == CBORTokenTag::ENVELOPE)
     tokenizer->EnterEnvelope();
   switch (tokenizer->TokenTag()) {
-    case CBORTokenTag::ERROR:
+    case CBORTokenTag::ERROR_VALUE:
       out->HandleError(tokenizer->Status());
       return false;
     case CBORTokenTag::DONE:
@@ -481,7 +481,7 @@ bool ParseArray(int32_t stack_depth, CBORTokenizer* tokenizer,
           Status{Error::CBOR_UNEXPECTED_EOF_IN_ARRAY, tokenizer->Status().pos});
       return false;
     }
-    if (tokenizer->TokenTag() == CBORTokenTag::ERROR) {
+    if (tokenizer->TokenTag() == CBORTokenTag::ERROR_VALUE) {
       out->HandleError(tokenizer->Status());
       return false;
     }
@@ -507,7 +507,7 @@ bool ParseMap(int32_t stack_depth, CBORTokenizer* tokenizer,
           Status{Error::CBOR_UNEXPECTED_EOF_IN_MAP, tokenizer->Status().pos});
       return false;
     }
-    if (tokenizer->TokenTag() == CBORTokenTag::ERROR) {
+    if (tokenizer->TokenTag() == CBORTokenTag::ERROR_VALUE) {
       out->HandleError(tokenizer->Status());
       return false;
     }
@@ -540,7 +540,7 @@ void ParseCBOR(span<uint8_t> bytes, JSONParserHandler* json_out) {
     return;
   }
   CBORTokenizer tokenizer(bytes);
-  if (tokenizer.TokenTag() == CBORTokenTag::ERROR) {
+  if (tokenizer.TokenTag() == CBORTokenTag::ERROR_VALUE) {
     json_out->HandleError(tokenizer.Status());
     return;
   }
@@ -555,7 +555,7 @@ void ParseCBOR(span<uint8_t> bytes, JSONParserHandler* json_out) {
   }
   if (!ParseMap(/*stack_depth=*/1, &tokenizer, json_out)) return;
   if (tokenizer.TokenTag() == CBORTokenTag::DONE) return;
-  if (tokenizer.TokenTag() == CBORTokenTag::ERROR) {
+  if (tokenizer.TokenTag() == CBORTokenTag::ERROR_VALUE) {
     json_out->HandleError(tokenizer.Status());
     return;
   }
@@ -571,7 +571,7 @@ CBORTokenizer::~CBORTokenizer() {}
 CBORTokenTag CBORTokenizer::TokenTag() const { return token_tag_; }
 
 void CBORTokenizer::Next() {
-  if (token_tag_ == CBORTokenTag::ERROR || token_tag_ == CBORTokenTag::DONE)
+  if (token_tag_ == CBORTokenTag::ERROR_VALUE || token_tag_ == CBORTokenTag::DONE)
     return;
   ReadNextToken(/*enter_envelope=*/false);
 }
@@ -762,7 +762,7 @@ void CBORTokenizer::SetToken(CBORTokenTag token_tag,
 }
 
 void CBORTokenizer::SetError(Error error) {
-  token_tag_ = CBORTokenTag::ERROR;
+  token_tag_ = CBORTokenTag::ERROR_VALUE;
   status_.error = error;
 }
 
