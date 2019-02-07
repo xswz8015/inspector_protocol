@@ -134,7 +134,8 @@ void WriteTokenStart(MajorType type, uint64_t value,
   if (value <= std::numeric_limits<uint32_t>::max()) {
     // 32 bit uint: 1 initial byte + 4 bytes payload.
     encoded->push_back(EncodeInitialByte(type, kAdditionalInformation4Bytes));
-    WriteBytesMostSignificantByteFirst<uint32_t>(value, encoded);
+    WriteBytesMostSignificantByteFirst<uint32_t>(static_cast<uint32_t>(value),
+                                                 encoded);
     return;
   }
   // 64 bit uint: 1 initial byte + 8 bytes payload.
@@ -586,9 +587,10 @@ Status CBORTokenizer::Status() const { return status_; }
 int32_t CBORTokenizer::GetInt32() const {
   assert(token_tag_ == CBORTokenTag::INT32);
   // The range checks happen in ::ReadNextToken().
-  return token_start_type_ == MajorType::UNSIGNED
-             ? token_start_internal_value_
-             : -static_cast<int64_t>(token_start_internal_value_) - 1;
+  return static_cast<uint32_t>(
+      token_start_type_ == MajorType::UNSIGNED
+          ? token_start_internal_value_
+          : -static_cast<int64_t>(token_start_internal_value_) - 1);
 }
 
 double CBORTokenizer::GetDouble() const {
