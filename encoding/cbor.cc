@@ -47,7 +47,13 @@ static constexpr uint8_t kEncodedNull =
     EncodeInitialByte(MajorType::SIMPLE_VALUE, 22);
 static constexpr uint8_t kInitialByteForDouble =
     EncodeInitialByte(MajorType::SIMPLE_VALUE, 27);
+}  // namespace
 
+uint8_t EncodeTrue() { return kEncodedTrue; }
+uint8_t EncodeFalse() { return kEncodedFalse; }
+uint8_t EncodeNull() { return kEncodedNull; }
+
+namespace {
 // TAG 24 indicates that what follows is a byte string which is
 // encoded in CBOR format. We use this as a wrapper for
 // maps and arrays, allowing us to skip them, because the
@@ -71,7 +77,19 @@ static constexpr uint8_t kInitialByteIndefiniteLengthMap =
 // length maps / arrays.
 static constexpr uint8_t kStopByte =
     EncodeInitialByte(MajorType::SIMPLE_VALUE, 31);
+}  // namespace
 
+uint8_t EncodeIndefiniteLengthArrayStart() {
+  return kInitialByteIndefiniteLengthArray;
+}
+
+uint8_t EncodeIndefiniteLengthMapStart() {
+  return kInitialByteIndefiniteLengthMap;
+}
+
+uint8_t EncodeStop() { return kStopByte; }
+
+namespace {
 // See RFC 7049 Table 3 and Section 2.4.4.2. This is used as a prefix for
 // arbitrary binary data encoded as BYTE_STRING.
 static constexpr uint8_t kExpectedConversionToBase64Tag =

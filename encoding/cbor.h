@@ -56,6 +56,14 @@ void EncodeBinary(span<uint8_t> in, std::vector<uint8_t>* out);
 // with additional info = 27, followed by 8 bytes in big endian.
 void EncodeDouble(double value, std::vector<uint8_t>* out);
 
+// Some constants for CBOR tokens that only take a single byte on the wire.
+uint8_t EncodeTrue();
+uint8_t EncodeFalse();
+uint8_t EncodeNull();
+uint8_t EncodeIndefiniteLengthArrayStart();
+uint8_t EncodeIndefiniteLengthMapStart();
+uint8_t EncodeStop();
+
 // An envelope indicates the byte length of a wrapped item.
 // We use this for maps and array, which allows the decoder
 // to skip such (nested) values whole sale.
