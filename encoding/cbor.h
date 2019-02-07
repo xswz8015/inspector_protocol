@@ -105,7 +105,7 @@ void ParseCBOR(span<uint8_t> bytes, JSONParserHandler* json_out);
 enum class CBORTokenTag {
   // Encountered an error in the structure of the message. Consult
   // status() for details.
-  ERROR,
+  ERROR_VALUE,
   // Booleans and NULL.
   TRUE_VALUE,
   FALSE_VALUE,
@@ -148,7 +148,7 @@ class CBORTokenizer {
   ~CBORTokenizer();
 
   // Identifies the current token that we're looking at,
-  // or ERROR (in which ase ::Status() has details)
+  // or ERROR_VALUE (in which ase ::Status() has details)
   // or DONE (if we're past the last token).
   CBORTokenTag TokenTag() const;
 
@@ -160,7 +160,7 @@ class CBORTokenizer {
   // letting the client explore the nested structure.
   void EnterEnvelope();
 
-  // If TokenTag() is CBORTokenTag::ERROR, then Status().error describes
+  // If TokenTag() is CBORTokenTag::ERROR_VALUE, then Status().error describes
   // the error more precisely; otherwise it'll be set to Error::OK.
   // In either case, Status().pos is the current position.
   struct Status Status() const;
