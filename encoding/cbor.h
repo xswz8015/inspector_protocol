@@ -163,7 +163,7 @@ class CBORTokenizer {
   // If TokenTag() is CBORTokenTag::ERROR, then Status().error describes
   // the error more precisely; otherwise it'll be set to Error::OK.
   // In either case, Status().pos is the current position.
-  inspector_protocol::Status Status() const;
+  struct Status Status() const;
 
   // The following methods retrieve the token values. They can only
   // be called if TokenTag() matches.
@@ -191,7 +191,7 @@ class CBORTokenizer {
 
   span<uint8_t> bytes_;
   CBORTokenTag token_tag_;
-  inspector_protocol::Status status_;
+  struct Status status_;
   int64_t token_byte_length_;
   cbor_internals::MajorType token_start_type_;
   uint64_t token_start_internal_value_;
