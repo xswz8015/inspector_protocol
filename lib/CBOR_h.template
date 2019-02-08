@@ -65,6 +65,8 @@ struct Status {
 
   Error error = Error::OK;
   std::ptrdiff_t pos = npos();
+  Status(Error error, std::ptrdiff_t pos) : error(error), pos(pos) {}
+  Status() = default;
 };
 
 // ===== encoding/span.h =====

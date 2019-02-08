@@ -373,7 +373,7 @@ class JSONToCBOREncoder : public JSONParserHandler {
 
 std::unique_ptr<JSONParserHandler> NewJSONToCBOREncoder(
     std::vector<uint8_t>* out, Status* status) {
-  return std::make_unique<JSONToCBOREncoder>(out, status);
+  return std::unique_ptr<JSONParserHandler>(new JSONToCBOREncoder(out, status));
 }
 
 namespace {

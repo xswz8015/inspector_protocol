@@ -210,6 +210,6 @@ class Writer : public JSONParserHandler {
 std::unique_ptr<JSONParserHandler> NewJSONWriter(Platform* platform,
                                                  std::string* out,
                                                  Status* status) {
-  return std::make_unique<Writer>(platform, out, status);
+  return std::unique_ptr<Writer>(new Writer(platform, out, status));
 }
 }  // namespace inspector_protocol
