@@ -82,7 +82,7 @@ class EnvelopeEncoder {
   bool EncodeStop(std::vector<uint8_t>* out);
 
  private:
-  uint64_t byte_size_pos_ = 0;
+  std::vector<uint8_t>::size_type byte_size_pos_ = 0;
 };
 
 // This can be used to convert from JSON to CBOR, by passing the
@@ -186,13 +186,13 @@ class CBORTokenizer {
 
  private:
   void ReadNextToken(bool enter_envelope);
-  void SetToken(CBORTokenTag token, int64_t token_byte_length);
+  void SetToken(CBORTokenTag token, std::ptrdiff_t token_byte_length);
   void SetError(Error error);
 
   span<uint8_t> bytes_;
   CBORTokenTag token_tag_;
   struct Status status_;
-  int64_t token_byte_length_;
+  std::ptrdiff_t token_byte_length_;
   cbor_internals::MajorType token_start_type_;
   uint64_t token_start_internal_value_;
 };
