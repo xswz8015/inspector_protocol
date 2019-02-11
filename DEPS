@@ -1,7 +1,13 @@
 # Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
+#
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# ! DO NOT ROLL THIS FILE INTO CHROMIUM (or other repositories). !
+# ! It's only useful for the standalone configuration in         !
+# ! https://chromium.googlesource.com/deps/inspector_protocol/   !
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#
 # This file configures gclient, a tool that installs dependencies
 # at particular versions into this source tree. See
 # https://chromium.googlesource.com/chromium/tools/depot_tools.git
