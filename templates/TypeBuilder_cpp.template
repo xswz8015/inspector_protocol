@@ -101,8 +101,13 @@ std::unique_ptr<{{type.id}}> {{type.id}}::clone() const
 
 {{config.exported.string_out}} {{type.id}}::toJSONString() const
 {
-    String json = toValue()->serialize();
+    String json = toValue()->serializeToJSON();
     return {{config.exported.to_string_out % "json"}};
+}
+
+std::vector<uint8_t> {{type.id}}::toBinary() const
+{
+    return toValue()->serializeToBinary();
 }
 
 // static
@@ -188,9 +193,14 @@ void Frontend::flush()
     m_frontendChannel->flushProtocolNotifications();
 }
 
-void Frontend::sendRawNotification(const ProtocolMessage& notification)
+void Frontend::sendRawNotification(String notification)
 {
-    m_frontendChannel->sendProtocolNotification(InternalRawNotification::create(notification));
+    m_frontendChannel->sendProtocolNotification(InternalRawNotification::fromJSON(std::move(notification)));
+}
+
+void Frontend::sendRawNotification(std::vector<uint8_t> notification)
+{
+    m_frontendChannel->sendProtocolNotification(InternalRawNotification::fromBinary(std::move(notification)));
 }
 
 // --------------------- Dispatcher.
