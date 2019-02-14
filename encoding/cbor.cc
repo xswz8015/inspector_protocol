@@ -258,7 +258,7 @@ class JSONToCBOREncoder : public JSONParserHandler {
     assert(!envelopes_.empty());
     envelopes_.back().EncodeStop(out_);
     envelopes_.pop_back();
-  };
+  }
 
   void HandleArrayBegin() override {
     envelopes_.emplace_back();
@@ -271,7 +271,7 @@ class JSONToCBOREncoder : public JSONParserHandler {
     assert(!envelopes_.empty());
     envelopes_.back().EncodeStop(out_);
     envelopes_.pop_back();
-  };
+  }
 
   void HandleString16(std::vector<uint16_t> chars) override {
     for (uint16_t ch : chars) {
@@ -290,7 +290,7 @@ class JSONToCBOREncoder : public JSONParserHandler {
     EncodeBinary(span<uint8_t>(bytes.data(), bytes.size()), out_);
   }
 
-  void HandleDouble(double value) override { EncodeDouble(value, out_); };
+  void HandleDouble(double value) override { EncodeDouble(value, out_); }
 
   void HandleInt32(int32_t value) override { EncodeInt32(value, out_); }
 
