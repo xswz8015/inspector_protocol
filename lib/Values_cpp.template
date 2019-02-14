@@ -66,14 +66,14 @@ static constexpr int kStackLimitValues = 1000;
 
 // Below are three parsing routines for CBOR, which cover enough
 // to roundtrip JSON messages.
-std::unique_ptr<Value> parseMap(int32_t stack_depth, CBORTokenizer* tokenizer);
-std::unique_ptr<Value> parseArray(int32_t stack_depth, CBORTokenizer* tokenizer);
+std::unique_ptr<DictionaryValue> parseMap(int32_t stack_depth, CBORTokenizer* tokenizer);
+std::unique_ptr<ListValue> parseArray(int32_t stack_depth, CBORTokenizer* tokenizer);
 std::unique_ptr<Value> parseValue(int32_t stack_depth, CBORTokenizer* tokenizer);
 
 // |bytes| must start with the indefinite length array byte, so basically,
 // ParseArray may only be called after an indefinite length array has been
 // detected.
-std::unique_ptr<Value> parseArray(int32_t stack_depth, CBORTokenizer* tokenizer) {
+std::unique_ptr<ListValue> parseArray(int32_t stack_depth, CBORTokenizer* tokenizer) {
   DCHECK(tokenizer->TokenTag() == CBORTokenTag::ARRAY_START);
   tokenizer->Next();
   auto list = ListValue::create();
@@ -104,33 +104,33 @@ std::unique_ptr<Value> parseValue(
       // Error::CBOR_UNEXPECTED_EOF_EXPECTED_VALUE
       return nullptr;
     case CBORTokenTag::TRUE_VALUE: {
-      auto value = FundamentalValue::create(true);
+      std::unique_ptr<Value> value = FundamentalValue::create(true);
       tokenizer->Next();
       return value;
     }
     case CBORTokenTag::FALSE_VALUE: {
-      auto value = FundamentalValue::create(false);
+      std::unique_ptr<Value> value = FundamentalValue::create(false);
       tokenizer->Next();
       return value;
     }
     case CBORTokenTag::NULL_VALUE: {
-      auto value = FundamentalValue::null();
+      std::unique_ptr<Value> value = FundamentalValue::null();
       tokenizer->Next();
       return value;
     }
     case CBORTokenTag::INT32: {
-      auto value = FundamentalValue::create(tokenizer->GetInt32());
+      std::unique_ptr<Value> value = FundamentalValue::create(tokenizer->GetInt32());
       tokenizer->Next();
       return value;
     }
     case CBORTokenTag::DOUBLE: {
-      auto value = FundamentalValue::create(tokenizer->GetDouble());
+      std::unique_ptr<Value> value = FundamentalValue::create(tokenizer->GetDouble());
       tokenizer->Next();
       return value;
     }
     case CBORTokenTag::STRING8: {
       span<uint8_t> str = tokenizer->GetString8();
-      auto value = StringValue::create(StringUtil::fromUTF8(str.data(), str.size()));
+      std::unique_ptr<Value> value = StringValue::create(StringUtil::fromUTF8(str.data(), str.size()));
       tokenizer->Next();
       return value;
     }
@@ -154,9 +154,8 @@ std::unique_ptr<Value> parseValue(
 // |bytes| must start with the indefinite length array byte, so basically,
 // ParseArray may only be called after an indefinite length array has been
 // detected.
-std::unique_ptr<Value> parseMap(
+std::unique_ptr<DictionaryValue> parseMap(
     int32_t stack_depth, CBORTokenizer* tokenizer) {
-  assert(tokenizer->TokenTag() == CBORTokenTag::MAP_START);
   auto dict = DictionaryValue::create();
   tokenizer->Next();
   while (tokenizer->TokenTag() != CBORTokenTag::STOP) {
