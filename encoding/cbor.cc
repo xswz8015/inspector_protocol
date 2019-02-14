@@ -722,6 +722,7 @@ void CBORTokenizer::SetError(Error error) {
   status_.error = error;
 }
 
+#if 0
 void DumpCBOR(span<uint8_t> cbor) {
   std::string indent;
   CBORTokenizer tokenizer(cbor);
@@ -788,5 +789,6 @@ void DumpCBOR(span<uint8_t> cbor) {
     tokenizer.Next();
   }
 }
+#endif
 
 }  // namespace inspector_protocol
