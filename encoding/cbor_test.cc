@@ -329,6 +329,63 @@ TEST(EncodeDecodeString8Test, RoundtripsHelloWorld) {
   EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
 }
 
+TEST(EncodeFromLatin1Test, ConvertsToUTF8IfNeeded) {
+  std::vector<std::pair<std::string, std::string>> examples = {
+      {"Hello, world.", "Hello, world."},
+      {"Above: \xDC"
+       "ber",
+       "Above: Über"},
+      {"\xA5 500 are about \xA3 3.50; a y with umlaut is \xFF",
+       "¥ 500 are about £ 3.50; a y with umlaut is ÿ"}};
+
+  for (const auto& example : examples) {
+    const std::string& latin1 = example.first;
+    const std::string& expected_utf8 = example.second;
+    std::vector<uint8_t> encoded;
+    EncodeFromLatin1(
+        span<uint8_t>(reinterpret_cast<const uint8_t*>(latin1.data()),
+                      latin1.size()),
+        &encoded);
+    CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+    EXPECT_EQ(CBORTokenTag::STRING8, tokenizer.TokenTag());
+    std::vector<uint8_t> decoded(tokenizer.GetString8().begin(),
+                                 tokenizer.GetString8().end());
+    std::string decoded_str(decoded.begin(), decoded.end());
+    EXPECT_THAT(decoded_str, testing::Eq(expected_utf8));
+  }
+}
+
+TEST(EncodeFromUTF16Test, ConvertsToUTF8IfEasy) {
+  std::vector<uint16_t> ascii = {'e', 'a', 's', 'y'};
+  std::vector<uint8_t> encoded;
+  EncodeFromUTF16(span<uint16_t>(ascii.data(), ascii.size()), &encoded);
+
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::STRING8, tokenizer.TokenTag());
+  std::vector<uint8_t> decoded(tokenizer.GetString8().begin(),
+                               tokenizer.GetString8().end());
+  std::string decoded_str(decoded.begin(), decoded.end());
+  EXPECT_THAT(decoded_str, testing::Eq("easy"));
+}
+
+TEST(EncodeFromUTF16Test, EncodesAsString16IfNeeded) {
+  // Since this message contains non-ASCII characters, the routine is
+  // forced to encode as UTF16. We see this below by checking that the
+  // token tag is STRING16.
+  std::vector<uint16_t> msg = {'H', 'e', 'l',    'l',    'o',
+                               ',', ' ', 0xd83c, 0xdf0e, '.'};
+  std::vector<uint8_t> encoded;
+  EncodeFromUTF16(span<uint16_t>(msg.data(), msg.size()), &encoded);
+
+  CBORTokenizer tokenizer(span<uint8_t>(&encoded[0], encoded.size()));
+  EXPECT_EQ(CBORTokenTag::STRING16, tokenizer.TokenTag());
+  std::vector<uint16_t> decoded =
+      String16WireRepToHost(tokenizer.GetString16WireRep());
+  std::string utf8_decoded =
+      base::UTF16ToUTF8(base::StringPiece16(decoded.data(), decoded.size()));
+  EXPECT_EQ("Hello, 🌎.", utf8_decoded);
+}
+
 //
 // EncodeBinary / CBORTokenTag::BINARY
 //

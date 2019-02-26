@@ -115,6 +115,15 @@ void EncodeString16(span<uint16_t> in, std::vector<uint8_t>* out);
 // Encodes a UTF8 string |in| as STRING (major type 3).
 void EncodeString8(span<uint8_t> in, std::vector<uint8_t>* out);
 
+// Encodes the given |latin1| string as STRING8.
+// If any non-ASCII character is present, it will be represented
+// as a 2 byte UTF8 sequence.
+void EncodeFromLatin1(span<uint8_t> latin1, std::vector<uint8_t>* out);
+
+// Encodes the given |utf16| string as STRING8 if it's entirely US-ASCII.
+// Otherwise, encodes as STRING16.
+void EncodeFromUTF16(span<uint16_t> utf16, std::vector<uint8_t>* out);
+
 // Encodes arbitrary binary data in |in| as a BYTE_STRING (major type 2) with
 // definitive length, prefixed with tag 22 indicating expected conversion to
 // base64 (see RFC 7049, Table 3 and Section 2.4.4.2).

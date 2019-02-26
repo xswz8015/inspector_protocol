@@ -188,6 +188,38 @@ void EncodeString8(span<uint8_t> in, std::vector<uint8_t>* out) {
   out->insert(out->end(), in.begin(), in.end());
 }
 
+void EncodeFromLatin1(span<uint8_t> latin1, std::vector<uint8_t>* out) {
+  for (std::ptrdiff_t ii = 0; ii < latin1.size(); ++ii) {
+    if (latin1[ii] <= 127) continue;
+    // If there's at least one non-ASCII char, convert to UTF8.
+    std::vector<uint8_t> utf8(latin1.begin(), latin1.begin() + ii);
+    for (; ii < latin1.size(); ++ii) {
+      if (latin1[ii] <= 127) {
+        utf8.push_back(latin1[ii]);
+      } else {
+        // 0xC0 means it's a UTF8 sequence with 2 bytes.
+        utf8.push_back((latin1[ii] >> 6) | 0xc0);
+        utf8.push_back((latin1[ii] | 0x80) & 0xbf);
+      }
+    }
+    EncodeString8(span<uint8_t>(utf8.data(), utf8.size()), out);
+    return;
+  }
+  EncodeString8(latin1, out);
+}
+
+void EncodeFromUTF16(span<uint16_t> utf16, std::vector<uint8_t>* out) {
+  // If there's at least one non-ASCII char, encode as STRING16 (UTF16).
+  for (uint16_t ch : utf16) {
+    if (ch <= 127) continue;
+    EncodeString16(utf16, out);
+    return;
+  }
+  // It's all US-ASCII, strip out every second byte and encode as UTF8.
+  WriteTokenStart(MajorType::STRING, static_cast<uint64_t>(utf16.size()), out);
+  out->insert(out->end(), utf16.begin(), utf16.end());
+}
+
 void EncodeBinary(span<uint8_t> in, std::vector<uint8_t>* out) {
   out->push_back(kExpectedConversionToBase64Tag);
   uint64_t byte_length = static_cast<uint64_t>(in.size_bytes());
