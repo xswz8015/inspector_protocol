@@ -279,6 +279,10 @@ class JSONToCBOREncoder : public JSONParserHandler {
     envelopes_.pop_back();
   }
 
+  void HandleString8(std::vector<uint8_t> chars) override {
+    EncodeString8(span<uint8_t>(chars.data(), chars.size()), out_);
+  }
+
   void HandleString16(std::vector<uint16_t> chars) override {
     for (uint16_t ch : chars) {
       if (ch >= 0x7f) {
@@ -347,21 +351,10 @@ void ParseUTF16String(CBORTokenizer* tokenizer, JSONParserHandler* out) {
   tokenizer->Next();
 }
 
-// For now this method only covers US-ASCII. Later, we may allow UTF8.
-bool ParseASCIIString(CBORTokenizer* tokenizer, JSONParserHandler* out) {
+bool ParseUTF8String(CBORTokenizer* tokenizer, JSONParserHandler* out) {
   assert(tokenizer->TokenTag() == CBORTokenTag::STRING8);
-  std::vector<uint16_t> value16;
-  for (uint8_t ch : tokenizer->GetString8()) {
-    // We only accept us-ascii (7 bit) strings here. Other strings must
-    // be encoded with 16 bit (the BYTE_STRING case).
-    if (ch >= 0x7f) {
-      out->HandleError(
-          Status{Error::CBOR_STRING8_MUST_BE_7BIT, tokenizer->Status().pos});
-      return false;
-    }
-    value16.push_back(ch);
-  }
-  out->HandleString16(std::move(value16));
+  span<uint8_t> str = tokenizer->GetString8();
+  out->HandleString8(std::vector<uint8_t>(str.begin(), str.end()));
   tokenizer->Next();
   return true;
 }
@@ -405,7 +398,7 @@ bool ParseValue(int32_t stack_depth, CBORTokenizer* tokenizer,
       tokenizer->Next();
       return true;
     case CBORTokenTag::STRING8:
-      return ParseASCIIString(tokenizer, out);
+      return ParseUTF8String(tokenizer, out);
     case CBORTokenTag::STRING16:
       ParseUTF16String(tokenizer, out);
       return true;
@@ -472,7 +465,7 @@ bool ParseMap(int32_t stack_depth, CBORTokenizer* tokenizer,
     }
     // Parse key.
     if (tokenizer->TokenTag() == CBORTokenTag::STRING8) {
-      if (!ParseASCIIString(tokenizer, out)) return false;
+      if (!ParseUTF8String(tokenizer, out)) return false;
     } else if (tokenizer->TokenTag() == CBORTokenTag::STRING16) {
       ParseUTF16String(tokenizer, out);
     } else {

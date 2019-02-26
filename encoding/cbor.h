@@ -96,8 +96,9 @@ static constexpr uint8_t kStopByte =
 // - UTF16 strings, including with unbalanced surrogate pairs, are encoded
 //   as CBOR BYTE_STRING (major type 2). For such strings, the number of
 //   bytes encoded must be even.
-// - UTF8 strings (major type 3) may only have ASCII characters
-//   (7 bit US-ASCII).
+// - UTF8 strings (major type 3) are supported.
+// - 7 bit US-ASCII strings must always be encoded as UTF8 strings, not
+//   as UTF16 strings.
 // - Arbitrary byte arrays, in the inspector protocol called 'binary',
 //   are encoded as BYTE_STRING (major type 2), prefixed with a byte
 //   indicating base64 when rendered as JSON.
