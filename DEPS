@@ -33,7 +33,7 @@ deps = {
     # For writing unittests.
     'src/third_party/gtest/gtest':
         Var('chromium_git') + '/external/github.com/google/googletest@' +
-        'c091b0469ab4c04ee9411ef770f32360945f4c53',
+        '5ec7f0c4a113e2f18ac2c6cc7df51ad6afc24081',
 }
 
 hooks = [
