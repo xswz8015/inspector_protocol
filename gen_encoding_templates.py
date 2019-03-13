@@ -5,8 +5,8 @@
 # found in the LICENSE file.
 
 """
-This is a very simple script to generate lib/CBOR_cc.template
-and lib/CBOR_h.template from the C++ files in the encoding directory.
+This is a very simple script to generate lib/encoding_cc.template
+and lib/encoding_h.template from the C++ files in the encoding directory.
 This lets us edit the .cc / .h files, which is more pleasant
 (there are tests after all), and then update the templates
 mechanically.
@@ -16,10 +16,10 @@ def ReadBody(filename, system_includes, bodies):
   inside_namespace = False
   body = ['\n', '// ===== %s =====\n' % filename, '\n']
   for line in open(filename):
-    if line == 'namespace inspector_protocol {\n':
+    if line == 'namespace inspector_protocol_encoding {\n':
       inside_namespace = True
       continue
-    if line == '}  // namespace inspector_protocol\n':
+    if line == '}  // namespace inspector_protocol_encoding\n':
       inside_namespace = False
       continue
     if line.startswith('#include <'):
@@ -73,9 +73,7 @@ def GenTemplate(with_header_guard, filename, from_cpp_files):
   open(filename, 'w').write(''.join(contents))
 
 if __name__ == '__main__':
-  GenTemplate(with_header_guard=None, filename='lib/CBOR_cpp.template',
-              from_cpp_files=['encoding/cbor.cc'])
-  GenTemplate(with_header_guard='CBOR', filename='lib/CBOR_h.template',
-              from_cpp_files=['encoding/status.h', 'encoding/span.h',
-               'encoding/json_parser_handler.h', 'encoding/cbor_internals.h',
-               'encoding/cbor.h'])
+  GenTemplate(with_header_guard=None, filename='lib/encoding_cpp.template',
+              from_cpp_files=['encoding/encoding.cc'])
+  GenTemplate(with_header_guard='encoding', filename='lib/encoding_h.template',
+              from_cpp_files=['encoding/encoding.h'])
