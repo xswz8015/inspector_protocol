@@ -659,7 +659,7 @@ void CBORTokenizer::SetError(Error error) {
 namespace {
 // When parsing CBOR, we limit recursion depth for objects and arrays
 // to this constant.
-static constexpr int kStackLimit = 1000;
+static constexpr int kStackLimit = 200;
 
 // Below are three parsing routines for CBOR, which cover enough
 // to roundtrip JSON messages.
@@ -1171,7 +1171,7 @@ std::unique_ptr<StreamingParserHandler> NewJSONEncoder(const Platform* platform,
 // =============================================================================
 
 namespace {
-const int kStackLimit = 1000;
+const int kStackLimit = 200;
 
 enum Token {
   ObjectBegin,
