@@ -1111,6 +1111,116 @@ TEST(ParseCBORTest, TrailingJunk) {
   EXPECT_EQ(error_pos, status.pos);
   EXPECT_EQ("", out);
 }
+
+// =============================================================================
+// cbor::AppendString8EntryToMap - for limited in-place editing of messages
+// =============================================================================
+
+TEST(AppendString8EntryToMapTest, AppendsEntrySuccessfully) {
+  constexpr uint8_t kPayloadLen = 12;
+  std::vector<uint8_t> bytes = {0xd8, 0x5a, 0, 0, 0, kPayloadLen,  // envelope
+                                0xbf};                             // map start
+  size_t pos_before_payload = bytes.size() - 1;
+  EncodeString8(SpanFromStdString("key"), &bytes);
+  EncodeString8(SpanFromStdString("value"), &bytes);
+  bytes.push_back(0xff);  // A perfectly fine cbor message.
+  EXPECT_EQ(kPayloadLen, bytes.size() - pos_before_payload);
+
+  Status status = AppendString8EntryToCBORMap(SpanFromStdString("foo"),
+                                              SpanFromStdString("bar"), &bytes);
+  EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ(-1, status.pos);
+  std::string out;
+  std::unique_ptr<StreamingParserHandler> json_writer =
+      NewJSONEncoder(&GetTestPlatform(), &out, &status);
+  ParseCBOR(span<uint8_t>(bytes.data(), bytes.size()), json_writer.get());
+  EXPECT_EQ("{\"key\":\"value\",\"foo\":\"bar\"}", out);
+  EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ(-1, status.pos);
+}
+
+TEST(AppendString8EntryToMapTest, AppendThreeEntries) {
+  std::vector<uint8_t> encoded = {
+      0xd8, 0x5a, 0, 0, 0, 2, EncodeIndefiniteLengthMapStart(), EncodeStop()};
+  EXPECT_EQ(Error::OK,
+            AppendString8EntryToCBORMap(SpanFromStdString("key"),
+                                        SpanFromStdString("value"), &encoded)
+                .error);
+  EXPECT_EQ(Error::OK,
+            AppendString8EntryToCBORMap(SpanFromStdString("key1"),
+                                        SpanFromStdString("value1"), &encoded)
+                .error);
+  EXPECT_EQ(Error::OK,
+            AppendString8EntryToCBORMap(SpanFromStdString("key2"),
+                                        SpanFromStdString("value2"), &encoded)
+                .error);
+
+  std::string out;
+  Status status;
+  std::unique_ptr<StreamingParserHandler> json_writer =
+      NewJSONEncoder(&GetTestPlatform(), &out, &status);
+  ParseCBOR(SpanFromVector(encoded), json_writer.get());
+  EXPECT_EQ("{\"key\":\"value\",\"key1\":\"value1\",\"key2\":\"value2\"}", out);
+  EXPECT_EQ(Error::OK, status.error);
+  EXPECT_EQ(-1, status.pos);
+}
+
+TEST(AppendString8EntryToMapTest, MapStartExpected_Error) {
+  std::vector<uint8_t> bytes = {
+      0xd8, 0x5a, 0, 0, 0, 1, EncodeIndefiniteLengthArrayStart()};
+
+  Status status = AppendString8EntryToCBORMap(
+      SpanFromStdString("key"), SpanFromStdString("value"), &bytes);
+  EXPECT_EQ(Error::CBOR_MAP_START_EXPECTED, status.error);
+  EXPECT_EQ(6, status.pos);
+}
+
+TEST(AppendString8EntryToMapTest, MapStopExpected_Error) {
+  std::vector<uint8_t> bytes = {
+      0xd8, 0x5a, 0, 0, 0, 2, EncodeIndefiniteLengthMapStart(), 42};
+
+  Status status = AppendString8EntryToCBORMap(
+      SpanFromStdString("key"), SpanFromStdString("value"), &bytes);
+  EXPECT_EQ(Error::CBOR_MAP_STOP_EXPECTED, status.error);
+  EXPECT_EQ(7, status.pos);
+}
+
+TEST(AppendString8EntryToMapTest, InvalidEnvelope_Error) {
+  {  // Second byte is wrong.
+    std::vector<uint8_t> bytes = {
+        0x5a, 0, 0, 0, 2, EncodeIndefiniteLengthMapStart(), EncodeStop(), 0};
+    Status status = AppendString8EntryToCBORMap(
+        SpanFromStdString("key"), SpanFromStdString("value"), &bytes);
+    EXPECT_EQ(Error::CBOR_INVALID_ENVELOPE, status.error);
+    EXPECT_EQ(0, status.pos);
+  }
+  {  // Second byte is wrong.
+    std::vector<uint8_t> bytes = {
+        0xd8, 0x7a, 0, 0, 0, 2, EncodeIndefiniteLengthMapStart(), EncodeStop()};
+    Status status = AppendString8EntryToCBORMap(
+        SpanFromStdString("key"), SpanFromStdString("value"), &bytes);
+    EXPECT_EQ(Error::CBOR_INVALID_ENVELOPE, status.error);
+    EXPECT_EQ(0, status.pos);
+  }
+  {  // Invalid envelope size example.
+    std::vector<uint8_t> bytes = {
+        0xd8, 0x5a, 0, 0, 0, 3, EncodeIndefiniteLengthMapStart(), EncodeStop(),
+    };
+    Status status = AppendString8EntryToCBORMap(
+        SpanFromStdString("key"), SpanFromStdString("value"), &bytes);
+    EXPECT_EQ(Error::CBOR_INVALID_ENVELOPE, status.error);
+    EXPECT_EQ(0, status.pos);
+  }
+  {  // Invalid envelope size example.
+    std::vector<uint8_t> bytes = {
+        0xd8, 0x5a, 0, 0, 0, 1, EncodeIndefiniteLengthMapStart(), EncodeStop(),
+    };
+    Status status = AppendString8EntryToCBORMap(
+        SpanFromStdString("key"), SpanFromStdString("value"), &bytes);
+    EXPECT_EQ(Error::CBOR_INVALID_ENVELOPE, status.error);
+    EXPECT_EQ(0, status.pos);
+  }
+}
 }  // namespace cbor
 
 namespace json {
