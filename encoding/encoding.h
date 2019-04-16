@@ -54,11 +54,11 @@ class span {
 };
 
 template <typename T>
-span<T> SpanFromVector(const std::vector<T>& v) {
+span<T> SpanFrom(const std::vector<T>& v) {
   return span<T>(v.data(), v.size());
 }
 
-inline span<uint8_t> SpanFromStdString(const std::string& v) {
+inline span<uint8_t> SpanFrom(const std::string& v) {
   return span<uint8_t>(reinterpret_cast<const uint8_t*>(v.data()), v.size());
 }
 

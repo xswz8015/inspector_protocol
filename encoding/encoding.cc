@@ -303,7 +303,7 @@ void EncodeFromLatin1Tmpl(span<uint8_t> latin1, C* out) {
         utf8.push_back((latin1[ii] | 0x80) & 0xbf);
       }
     }
-    EncodeString8(SpanFromVector(utf8), out);
+    EncodeString8(SpanFrom(utf8), out);
     return;
   }
   EncodeString8(latin1, out);
