@@ -31,3 +31,12 @@ test("encoding_test") {
     "//testing/gtest:gtest_main",
   ]
 }
+
+executable("transcode") {
+  sources = [
+    "encoding/transcode.cc",
+  ]
+  deps = [
+    ":encoding",
+  ]
+}
