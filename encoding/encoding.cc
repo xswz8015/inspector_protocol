@@ -802,27 +802,35 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
           SetToken(CBORTokenTag::INT32, token_start_length);
           return;
         case MajorType::STRING: {  // STRING8.
-          if (!success || remainder.size() < static_cast<int64_t>(
-                                                 token_start_internal_value_)) {
+          if (!success) {
             SetError(Error::CBOR_INVALID_STRING8);
             return;
           }
           auto length =
               static_cast<std::ptrdiff_t>(token_start_internal_value_);
+          if (remainder.size() < token_start_length + length) {
+            SetError(Error::CBOR_INVALID_STRING8);
+            return;
+          }
           SetToken(CBORTokenTag::STRING8, token_start_length + length);
           return;
         }
         case MajorType::BYTE_STRING: {  // STRING16.
-          if (!success ||
-              remainder.size() <
-                  static_cast<int64_t>(token_start_internal_value_) ||
-              // Must be divisible by 2 since UTF16 is 2 bytes per character.
-              token_start_internal_value_ & 1) {
+          if (!success) {
             SetError(Error::CBOR_INVALID_STRING16);
             return;
           }
           auto length =
               static_cast<std::ptrdiff_t>(token_start_internal_value_);
+          if (remainder.size() < token_start_length + length) {
+            SetError(Error::CBOR_INVALID_STRING16);
+            return;
+          }
+          if (length & 1) {
+            // Must be divisible by 2 since UTF16 is 2 bytes per character.
+            SetError(Error::CBOR_INVALID_STRING16);
+            return;
+          }
           SetToken(CBORTokenTag::STRING16, token_start_length + length);
           return;
         }
