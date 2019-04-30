@@ -1485,8 +1485,10 @@ class JsonParser {
   void Parse(const Char* start, std::size_t length) {
     start_pos_ = start;
     const Char* end = start + length;
-    const Char* tokenEnd;
+    const Char* tokenEnd = nullptr;
     ParseValue(start, end, &tokenEnd, 0);
+    if (error_)
+      return;
     if (tokenEnd != end) {
       HandleError(Error::JSON_PARSER_UNPROCESSED_INPUT_REMAINS, tokenEnd);
     }
@@ -1703,7 +1705,7 @@ class JsonParser {
       if (IsSpaceOrNewLine(*start)) {
         ++start;
       } else if (*start == '/') {
-        const Char* comment_end;
+        const Char* comment_end = nullptr;
         if (!SkipComment(start, end, &comment_end))
           break;
         start = comment_end;
@@ -1915,8 +1917,8 @@ class JsonParser {
       HandleError(Error::JSON_PARSER_STACK_LIMIT_EXCEEDED, start);
       return;
     }
-    const Char* token_start;
-    const Char* token_end;
+    const Char* token_start = nullptr;
+    const Char* token_end = nullptr;
     Token token = ParseToken(start, end, &token_start, &token_end);
     switch (token) {
       case NoInput:
