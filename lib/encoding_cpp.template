@@ -90,6 +90,8 @@ std::string Status::ToASCIIString() const {
     case Error::CBOR_ENVELOPE_SIZE_LIMIT_EXCEEDED:
       return ToASCIIString("CBOR: envelope size limit exceeded");
   }
+  // Some compilers can't figure out that we can't get here.
+  return "INVALID ERROR CODE";
 }
 
 std::string Status::ToASCIIString(const char* msg) const {
