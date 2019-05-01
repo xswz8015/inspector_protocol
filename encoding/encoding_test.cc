@@ -1783,15 +1783,22 @@ TEST_F(JsonParserTest, ValueExpectedError) {
   EXPECT_EQ("", log_.str());
 }
 
-TEST(ConvertJSONToCBOR, RoundTripValidJson) {
-  std::string json = "{\"msg\":\"Hello, world.\"}";
-  std::string cbor;
+template <typename T>
+class ConvertJSONToCBORTest : public ::testing::Test {};
+
+using ContainerTestTypes = ::testing::Types<std::vector<uint8_t>, std::string>;
+TYPED_TEST_SUITE(ConvertJSONToCBORTest, ContainerTestTypes);
+
+TYPED_TEST(ConvertJSONToCBORTest, RoundTripValidJson) {
+  std::string json_in = "{\"msg\":\"Hello, world.\",\"lst\":[1,2,3]}";
+  TypeParam json(json_in.begin(), json_in.end());
+  TypeParam cbor;
   {
     Status status = ConvertJSONToCBOR(GetTestPlatform(), SpanFrom(json), &cbor);
     EXPECT_EQ(Error::OK, status.error);
     EXPECT_EQ(Status::npos(), status.pos);
   }
-  std::string roundtrip_json;
+  TypeParam roundtrip_json;
   {
     Status status =
         ConvertCBORToJSON(GetTestPlatform(), SpanFrom(cbor), &roundtrip_json);
