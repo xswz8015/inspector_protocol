@@ -1788,5 +1788,29 @@ TYPED_TEST(ConvertJSONToCBORTest, RoundTripValidJson) {
   }
   EXPECT_EQ(json, roundtrip_json);
 }
+
+TYPED_TEST(ConvertJSONToCBORTest, RoundTripValidJson16) {
+  std::vector<uint16_t> json16 = {
+      '{', '"', 'm', 's',    'g',    '"', ':', '"', 'H', 'e', 'l', 'l',
+      'o', ',', ' ', 0xd83c, 0xdf0e, '.', '"', ',', '"', 'l', 's', 't',
+      '"', ':', '[', '1',    ',',    '2', ',', '3', ']', '}'};
+  TypeParam cbor;
+  {
+    Status status = ConvertJSONToCBOR(
+        GetTestPlatform(), span<uint16_t>(json16.data(), json16.size()), &cbor);
+    EXPECT_EQ(Error::OK, status.error);
+    EXPECT_EQ(Status::npos(), status.pos);
+  }
+  TypeParam roundtrip_json;
+  {
+    Status status =
+        ConvertCBORToJSON(GetTestPlatform(), SpanFrom(cbor), &roundtrip_json);
+    EXPECT_EQ(Error::OK, status.error);
+    EXPECT_EQ(Status::npos(), status.pos);
+  }
+  std::string json = "{\"msg\":\"Hello, \\ud83c\\udf0e.\",\"lst\":[1,2,3]}";
+  TypeParam expected_json(json.begin(), json.end());
+  EXPECT_EQ(expected_json, roundtrip_json);
+}
 }  // namespace json
 }  // namespace inspector_protocol_encoding
