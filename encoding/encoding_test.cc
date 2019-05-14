@@ -428,7 +428,10 @@ TEST(EncodeDecodeString16Test, ErrorCases) {
                 "length must be divisible by 2 (but it's 1)"},
        TestCase{{2 << 5 | 29}, "additional info = 29 isn't recognized"},
        TestCase{{2 << 5 | 9, 1, 2, 3, 4, 5, 6, 7, 8},
-                "length (9) points just past the end of the test case"}}};
+                "length (9) points just past the end of the test case"},
+       TestCase{{2 << 5 | 27, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                 'a', 'b', 'c'},
+                "length (2*63) can't be represented in std::ptrdiff_t"}}};
   for (const TestCase& test : tests) {
     SCOPED_TRACE(test.msg);
     CBORTokenizer tokenizer(SpanFrom(test.data));
@@ -474,7 +477,10 @@ TEST(EncodeDecodeString8Test, ErrorCases) {
   std::vector<TestCase> tests{
       {TestCase{{3 << 5 | 29}, "additional info = 29 isn't recognized"},
        TestCase{{3 << 5 | 9, 1, 2, 3, 4, 5, 6, 7, 8},
-                "length (9) points just past the end of the test case"}}};
+                "length (9) points just past the end of the test case"},
+       TestCase{{3 << 5 | 27, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                 'a', 'b', 'c'},
+                "length (2*63) can't be represented in std::ptrdiff_t"}}};
   for (const TestCase& test : tests) {
     SCOPED_TRACE(test.msg);
     CBORTokenizer tokenizer(SpanFrom(test.data));
@@ -560,6 +566,24 @@ TEST(EncodeDecodeBinaryTest, RoundtripsHelloWorld) {
   EXPECT_THAT(decoded, ElementsAreArray(binary));
   tokenizer.Next();
   EXPECT_EQ(CBORTokenTag::DONE, tokenizer.TokenTag());
+}
+
+TEST(EncodeDecodeBinaryTest, ErrorCases) {
+  struct TestCase {
+    std::vector<uint8_t> data;
+    std::string msg;
+  };
+  std::vector<TestCase> tests{{TestCase{
+      {6 << 5 | 22,  // tag 22 indicating base64 interpretation in JSON
+       2 << 5 | 27,  // BYTE_STRING (type 2), followed by 8 bytes length
+       0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+      "length (2^63) exceeds std::ptrdiff_t."}}};
+  for (const TestCase& test : tests) {
+    SCOPED_TRACE(test.msg);
+    CBORTokenizer tokenizer(SpanFrom(test.data));
+    EXPECT_EQ(CBORTokenTag::ERROR_VALUE, tokenizer.TokenTag());
+    EXPECT_EQ(Error::CBOR_INVALID_BINARY, tokenizer.Status().error);
+  }
 }
 
 //

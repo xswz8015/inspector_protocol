@@ -736,14 +736,26 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
       int8_t bytes_read = internals::ReadTokenStart(
           bytes_.subspan(status_.pos + 1), &token_start_type_,
           &token_start_internal_value_);
-      int64_t token_byte_length = 1 + bytes_read + token_start_internal_value_;
-      if (-1 == bytes_read || token_start_type_ != MajorType::BYTE_STRING ||
-          status_.pos + token_byte_length > bytes_.size()) {
+      std::ptrdiff_t payload_length =
+          static_cast<std::ptrdiff_t>(token_start_internal_value_);
+      if (bytes_read == -1 || payload_length < 0 ||
+          token_start_type_ != MajorType::BYTE_STRING) {
         SetError(Error::CBOR_INVALID_BINARY);
         return;
       }
-      SetToken(CBORTokenTag::BINARY,
-               static_cast<std::ptrdiff_t>(token_byte_length));
+      std::ptrdiff_t token_byte_length =
+          /* tag before token start: */ 1 + /* token start: */ bytes_read +
+          payload_length;
+      if (token_byte_length < 0) {
+        SetError(Error::CBOR_INVALID_BINARY);
+        return;
+      }
+      std::ptrdiff_t remaining_bytes = bytes_.size() - status_.pos;
+      if (remaining_bytes < token_byte_length) {
+        SetError(Error::CBOR_INVALID_BINARY);
+        return;
+      }
+      SetToken(CBORTokenTag::BINARY, token_byte_length);
       return;
     }
     case kInitialByteForDouble: {  // DOUBLE
@@ -808,13 +820,19 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
             SetError(Error::CBOR_INVALID_STRING8);
             return;
           }
-          auto length =
+          std::ptrdiff_t payload_length =
               static_cast<std::ptrdiff_t>(token_start_internal_value_);
-          if (remainder.size() < token_start_length + length) {
+          if (payload_length < 0) {
             SetError(Error::CBOR_INVALID_STRING8);
             return;
           }
-          SetToken(CBORTokenTag::STRING8, token_start_length + length);
+          std::ptrdiff_t token_byte_length =
+              payload_length + token_start_length;
+          if (token_byte_length < 0 || token_byte_length > remainder.size()) {
+            SetError(Error::CBOR_INVALID_STRING8);
+            return;
+          }
+          SetToken(CBORTokenTag::STRING8, token_byte_length);
           return;
         }
         case MajorType::BYTE_STRING: {  // STRING16.
@@ -822,18 +840,24 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
             SetError(Error::CBOR_INVALID_STRING16);
             return;
           }
-          auto length =
+          std::ptrdiff_t payload_length =
               static_cast<std::ptrdiff_t>(token_start_internal_value_);
-          if (remainder.size() < token_start_length + length) {
+          if (payload_length < 0) {
             SetError(Error::CBOR_INVALID_STRING16);
             return;
           }
-          if (length & 1) {
+          if (payload_length & 1) {
             // Must be divisible by 2 since UTF16 is 2 bytes per character.
             SetError(Error::CBOR_INVALID_STRING16);
             return;
           }
-          SetToken(CBORTokenTag::STRING16, token_start_length + length);
+          std::ptrdiff_t token_byte_length =
+              payload_length + token_start_length;
+          if (token_byte_length < 0 || token_byte_length > remainder.size()) {
+            SetError(Error::CBOR_INVALID_STRING16);
+            return;
+          }
+          SetToken(CBORTokenTag::STRING16, token_byte_length);
           return;
         }
         case MajorType::ARRAY:
