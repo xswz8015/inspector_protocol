@@ -1517,6 +1517,22 @@ TEST_F(JsonParserTest, SimpleDictionary) {
       log_.str());
 }
 
+TEST_F(JsonParserTest, UsAsciiDelCornerCase) {
+  // DEL (0x7f) is a 7 bit US-ASCII character, and while it is a control
+  // character according to Unicode, it's not considered a control
+  // character in https://tools.ietf.org/html/rfc7159#section-7, so
+  // it can be placed directly into the JSON string, without JSON escaping.
+  std::string json = "{\"foo\": \"a\x7f\"}";
+  ParseJSON(GetTestPlatform(), SpanFrom(json), &log_);
+  EXPECT_TRUE(log_.status().ok());
+  EXPECT_EQ(
+      "map begin\n"
+      "string16: foo\n"
+      "string16: a\x7f\n"
+      "map end\n",
+      log_.str());
+}
+
 TEST_F(JsonParserTest, Whitespace) {
   std::string json = "\n  {\n\"msg\"\n: \v\"Hello, world.\"\t\r}\t";
   ParseJSON(GetTestPlatform(), SpanFrom(json), &log_);

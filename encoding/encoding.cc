@@ -1856,7 +1856,7 @@ class JsonParser {
       // If the |Char| we're dealing with is really a byte, then
       // we have utf8 here, and we need to check for multibyte characters
       // and transcode them to utf16 (either one or two utf16 chars).
-      if (sizeof(Char) == sizeof(uint8_t) && c >= 0x7f) {
+      if (sizeof(Char) == sizeof(uint8_t) && c > 0x7f) {
         // Inspect the leading byte to figure out how long the utf8
         // byte sequence is; while doing this initialize |codepoint|
         // with the first few bits.
@@ -1895,7 +1895,7 @@ class JsonParser {
         // Disallow overlong encodings for ascii characters, as these
         // would include " and other characters significant to JSON
         // string termination / control.
-        if (codepoint < 0x7f)
+        if (codepoint <= 0x7f)
           return false;
         // Invalid in UTF8, and can't be represented in UTF16 anyway.
         if (codepoint > 0x10ffff)
