@@ -13,10 +13,17 @@ static_library("encoding") {
   ]
 }
 
-# In this (upstream) standalone package, we declare encoding_test, and
-# a few minimal files in testing to make it look like Chromium's testing
-# package. However, in Chromium, we run encoding/encoding_test as part
-# of the content_unittests, declared in content/test/BUILD.gn.
+static_library("bindings") {
+  sources = [
+    "bindings/bindings.cc",
+  ]
+}
+
+# In this (upstream) standalone package, we declare
+# {encoding,bindings}_test, and a few minimal files in testing
+# to make it look like Chromium's testing package. However, in
+# Chromium, we run these tests as part of the content_unittests,
+# declared in content/test/BUILD.gn.
 
 test("encoding_test") {
   sources = [
@@ -26,6 +33,21 @@ test("encoding_test") {
   include_dirs = [ "." ]
   deps = [
     ":encoding",
+    "//base",
+    "//testing/gmock:gmock",
+    "//testing/gtest:gtest",
+    "//testing/gtest:gtest_main",
+  ]
+}
+
+test("bindings_test") {
+  sources = [
+    "bindings/bindings_test.cc",
+    "bindings/bindings_test_helper.h",
+  ]
+  include_dirs = [ "." ]
+  deps = [
+    ":bindings",
     "//base",
     "//testing/gmock:gmock",
     "//testing/gtest:gtest",
