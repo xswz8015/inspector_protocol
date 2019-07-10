@@ -1376,7 +1376,7 @@ TEST(JsonEncoder, IncompleteUtf8Sequence) {
 
   {  // 🌎 takes four bytes to encode in UTF-8. We test with the first three;
     // This means we're trying to emit a string that consists solely of an
-    // incomplete UTF-8 sequence. So the string in the JSON output is emtpy.
+    // incomplete UTF-8 sequence. So the string in the JSON output is empty.
     std::string world_utf8 = "🌎";
     ASSERT_EQ(4u, world_utf8.size());
     std::vector<uint8_t> chars(world_utf8.begin(), world_utf8.begin() + 3);
