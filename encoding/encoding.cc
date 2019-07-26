@@ -85,6 +85,8 @@ std::string Status::ToASCIIString() const {
       return ToASCIIString("CBOR: map start expected");
     case Error::CBOR_MAP_STOP_EXPECTED:
       return ToASCIIString("CBOR: map stop expected");
+    case Error::CBOR_ARRAY_START_EXPECTED:
+      return ToASCIIString("CBOR: array start expected");
     case Error::CBOR_ENVELOPE_SIZE_LIMIT_EXCEEDED:
       return ToASCIIString("CBOR: envelope size limit exceeded");
 
