@@ -724,6 +724,12 @@ span<uint8_t> CBORTokenizer::GetBinary() const {
   return bytes_.subspan(status_.pos + (token_byte_length_ - length), length);
 }
 
+span<uint8_t> CBORTokenizer::GetEnvelope() const {
+  assert(token_tag_ == CBORTokenTag::ENVELOPE);
+  auto length = static_cast<size_t>(token_start_internal_value_);
+  return bytes_.subspan(status_.pos, length + kEncodedEnvelopeHeaderSize);
+}
+
 span<uint8_t> CBORTokenizer::GetEnvelopeContents() const {
   assert(token_tag_ == CBORTokenTag::ENVELOPE);
   auto length = static_cast<size_t>(token_start_internal_value_);

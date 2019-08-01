@@ -428,6 +428,17 @@ class CBORTokenizer {
   span<uint8_t> GetBinary() const;
 
   // To be called only if ::TokenTag() == CBORTokenTag::ENVELOPE.
+  // Returns the envelope including its payload; message which
+  // can be passed to the CBORTokenizer constructor, which will
+  // then see the envelope token first (looking at it a second time,
+  // basically).
+  span<uint8_t> GetEnvelope() const;
+
+  // To be called only if ::TokenTag() == CBORTokenTag::ENVELOPE.
+  // Returns only the payload inside the envelope, e.g., a map
+  // or an array. This is not a complete message by our
+  // IsCBORMessage definition, since it doesn't include the
+  // enclosing envelope (the header, basically).
   span<uint8_t> GetEnvelopeContents() const;
 
  private:
