@@ -7,15 +7,13 @@
 
 import("//testing/test.gni")
 
-static_library("encoding") {
+static_library("crdtp") {
   sources = [
-    "encoding/encoding.cc",
-  ]
-}
-
-static_library("bindings") {
-  sources = [
-    "bindings/bindings.cc",
+    "crdtp/bindings.cc",
+    "crdtp/bindings.h",
+    "crdtp/encoding.cc",
+    "crdtp/encoding.h",
+    "crdtp/export.h",
   ]
 }
 
@@ -27,12 +25,12 @@ static_library("bindings") {
 
 test("encoding_test") {
   sources = [
-    "encoding/encoding_test.cc",
-    "encoding/encoding_test_helper.h",
+    "crdtp/encoding_test.cc",
+    "crdtp/encoding_test_helper.h",
   ]
   include_dirs = [ "." ]
   deps = [
-    ":encoding",
+    ":crdtp",
     "//base",
     "//testing/gmock:gmock",
     "//testing/gtest:gtest",
@@ -42,12 +40,12 @@ test("encoding_test") {
 
 test("bindings_test") {
   sources = [
-    "bindings/bindings_test.cc",
-    "bindings/bindings_test_helper.h",
+    "crdtp/bindings_test.cc",
+    "crdtp/bindings_test_helper.h",
   ]
   include_dirs = [ "." ]
   deps = [
-    ":bindings",
+    ":crdtp",
     "//base",
     "//testing/gmock:gmock",
     "//testing/gtest:gtest",
@@ -57,9 +55,9 @@ test("bindings_test") {
 
 executable("transcode") {
   sources = [
-    "encoding/transcode.cc",
+    "crdtp/transcode.cc",
   ]
   deps = [
-    ":encoding",
+    ":crdtp",
   ]
 }
