@@ -1,4 +1,18 @@
-# Inspector Protocol Encoding Library
+# CRDTP Chromium DevTools Protocol library.
+
+This library is designed to be portable. The only allowed dependency
+are the C/C++ standard libraries, up to C++11. We support both 32 bit
+and 64 architectures.
+
+Types used:
+uint8_t: a byte, e.g. for raw bytes or UTF8 characters
+uint16_t: two bytes, e.g. for UTF16 characters
+For input parameters:
+   span<uint8_t>: pointer to bytes and length
+   span<uint16_t>: pointer to UTF16 chars and length
+For output parameters:
+   std::vector<uint8_t> - Owned segment of bytes / utf8 characters and length.
+   std::string - Same, for compatibility, even though char is signed.
 
 This library implements the encoding layer for the inspector protocol.
 The following facilities are provided:

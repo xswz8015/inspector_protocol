@@ -7,9 +7,10 @@
 #include <sstream>
 #include <string>
 
-#include "encoding.h"
+#include "json.h"
 
 namespace crdtp {
+namespace {
 class SingleThreadedPlatform : public json::Platform {
   bool StrToD(const char* str, double* result) const override {
     const char* saved_locale = std::setlocale(LC_NUMERIC, nullptr);
@@ -73,6 +74,7 @@ int Transcode(const std::string& cmd,
   output_file.write(out.data(), out.size());
   return 0;
 }
+}  // namespace
 }  // namespace crdtp
 
 int main(int argc, char** argv) {

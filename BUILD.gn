@@ -9,39 +9,32 @@ import("//testing/test.gni")
 
 static_library("crdtp") {
   sources = [
-    "crdtp/bindings.cc",
-    "crdtp/bindings.h",
-    "crdtp/encoding.cc",
-    "crdtp/encoding.h",
+    "crdtp/cbor.cc",
+    "crdtp/cbor.h",
     "crdtp/export.h",
+    "crdtp/glue.h",
+    "crdtp/json.cc",
+    "crdtp/json.h",
+    "crdtp/json_platform.h",
+    "crdtp/status.cc",
+    "crdtp/status.h",
   ]
 }
 
 # In this (upstream) standalone package, we declare
-# {encoding,bindings}_test, and a few minimal files in testing
+# crdtp_test, and a few minimal files in testing
 # to make it look like Chromium's testing package. However, in
 # Chromium, we run these tests as part of the content_unittests,
 # declared in content/test/BUILD.gn.
 
-test("encoding_test") {
+test("crdtp_test") {
   sources = [
-    "crdtp/encoding_test.cc",
-    "crdtp/encoding_test_helper.h",
-  ]
-  include_dirs = [ "." ]
-  deps = [
-    ":crdtp",
-    "//base",
-    "//testing/gmock:gmock",
-    "//testing/gtest:gtest",
-    "//testing/gtest:gtest_main",
-  ]
-}
-
-test("bindings_test") {
-  sources = [
-    "crdtp/bindings_test.cc",
-    "crdtp/bindings_test_helper.h",
+    "crdtp/cbor_test.cc",
+    "crdtp/glue_test.cc",
+    "crdtp/json_test.cc",
+    "crdtp/span_test.cc",
+    "crdtp/status_test.cc",
+    "crdtp/test_platform.cc",
   ]
   include_dirs = [ "." ]
   deps = [
