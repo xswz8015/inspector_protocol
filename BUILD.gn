@@ -14,18 +14,30 @@ static_library("crdtp") {
     "crdtp/export.h",
     "crdtp/glue.h",
     "crdtp/json.cc",
-    "crdtp/json.h",
-    "crdtp/json_platform.h",
+    "crdtp/parser_handler.h",
+    "crdtp/span.h",
     "crdtp/status.cc",
     "crdtp/status.h",
   ]
+  deps = [
+    ":crdtp_platform",
+  ]
 }
 
-# In this (upstream) standalone package, we declare
-# crdtp_test, and a few minimal files in testing
-# to make it look like Chromium's testing package. However, in
-# Chromium, we run these tests as part of the content_unittests,
-# declared in content/test/BUILD.gn.
+# A small adapter library which only :crdtp may depend on.
+static_library("crdtp_platform") {
+  sources = [
+    "crdtp/json.h",
+    "crdtp/json_platform.cc",
+  ]
+}
+
+# In this (upstream) standalone package, we declare crdtp_test, and a
+# few minimal files in testing (accessed via test_platform.{h,cc}) to
+# make it look like Chromium's testing package. In Chromium,
+# we run these tests as part of the content_unittests, declared in
+# content/test/BUILD.gn, and in V8, we run them via unittests, declared
+# in test/unittests/BUILD.gn.
 
 test("crdtp_test") {
   sources = [
@@ -34,18 +46,31 @@ test("crdtp_test") {
     "crdtp/json_test.cc",
     "crdtp/span_test.cc",
     "crdtp/status_test.cc",
-    "crdtp/test_platform.cc",
   ]
   include_dirs = [ "." ]
   deps = [
     ":crdtp",
+    ":crdtp_test_platform",
+  ]
+}
+
+# A small adapter library which only :crdtp_test may depend on.
+static_library("crdtp_test_platform") {
+  sources = [
+    "crdtp/test_platform.cc",
+    "crdtp/test_platform.h",
+  ]
+  testonly = true
+  include_dirs = [ "." ]
+  public_deps = [
     "//base",
-    "//testing/gmock:gmock",
-    "//testing/gtest:gtest",
+    "//testing/gmock",
+    "//testing/gtest",
     "//testing/gtest:gtest_main",
   ]
 }
 
+# A command line utility for converting between JSON and CBOR.
 executable("transcode") {
   sources = [
     "crdtp/transcode.cc",
