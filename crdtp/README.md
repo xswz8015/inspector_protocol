@@ -16,27 +16,27 @@ The library is designed to be portable. The only allowed dependencies are:
   supported by V8.
 
 - For testing, we depend on mini_chromium and gtest. This is isolated
-  into the crdtp/test_platform.{h,cc} library.
+  into the `crdtp/test_platform.{h,cc}` library.
 
 We support 32 bit and 64 bit architectures.
 
 # Common types used in this library.
 
-uint8_t: a byte, e.g. for raw bytes or UTF8 characters
+- `uint8_t`: a byte, e.g. for raw bytes or UTF8 characters
 
-uint16_t: two bytes, e.g. for UTF16 characters
+- `uint16_t`: two bytes, e.g. for UTF16 characters
 
 For input parameters:
 
-  span<uint8_t>: pointer to bytes and length
+- `span<uint8_t>`: pointer to bytes and length
 
-  span<uint16_t>: pointer to UTF16 chars and length
+- `span<uint16_t>`: pointer to UTF16 chars and length
 
 For output parameters:
 
-  std::vector<uint8_t> - Owned segment of bytes / utf8 characters and length.
+- `std::vector<uint8_t>` - Owned segment of bytes / utf8 characters and length.
 
-  std::string - Same, for compatibility, even though char is signed.
+- `std::string` - Same, for compatibility, even though char is signed.
 
 # Building and running the tests.
 
@@ -84,27 +84,27 @@ downstream code depends on.
 
 ## crdtp_platform
 
-This platform library is only used by the crdtp library. Thus far it consists
-only of json_platform.h and json_platform.cc, because conversion between a
-string and a double is tricky in multithreaded code bases (strtod
-sets errno, and stringstreams are slow). In this repository, we provide a
-reference implementation which only uses C++11 standard libraries, which is
-correct and sufficient for running the unittests and for simple command line
-utilities (e.g. crdtp/transform.cc).
+This platform library is only used by the crdtp library; it is not part of the
+crdtp API. Thus far it consists only of json_platform.h and json_platform.cc,
+because conversion between a `std::string` and a double is tricky, and different
+code bases have different preferences in this regard. In this repository
+(upstream), json_platform.cc provides a reference implementation which uses the
+C++ standard library.
 
-Downstream, in Chrome, json_platform.cc has a different implementation that uses
-the routines in Chromium's base, that is, it's a .cc file that's specific to
-Chromium. Similarly, in V8, json_platform.cc uses V8's number conversion utilities,
-so it's a .cc file that's specific to V8. And in google3, we use the absl
-library. crdtp/json_platform.cc is designed to be easy to
-modify, and the interface defined by its header is designed to be stable.
+Downstream, in Chromium, json_platform_chromium.cc has a different
+implementation that uses the routines in Chromium's //base, that is, it's a .cc
+file that's specific to Chromium. Similarly, in V8, json_platform_v8.cc uses
+V8's number conversion utilities, so it's a .cc file that's specific to V8. And
+in google3, we use the absl library. crdtp/json_platform.cc is designed to be
+easy to modify or replace, and the interface defined by its header is designed
+to be stable.
 
 ## crdtp_test_platform
 
 This platform library is only used by the tests. Upstream, it's setup to
 use mini_chromium and gtest. Downstream, Chromium uses it's //base libraries,
 and V8 uses theirs; and a small amount of tweaking is needed in each code
-base - e.g., Chromium, V8, and google3 each place #include declarations into
+base - e.g., Chromium, V8, and google3 each place `#include` declarations into
 test_platform.h that are specific to their code base, and they have their
 own routines in test_platform.cc which uses their own libraries.
 
