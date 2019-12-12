@@ -18,6 +18,7 @@ static_library("crdtp") {
     "crdtp/parser_handler.h",
     "crdtp/serializable.cc",
     "crdtp/serializable.h",
+    "crdtp/serializer_traits.h",
     "crdtp/span.h",
     "crdtp/status.cc",
     "crdtp/status.h",
@@ -30,8 +31,8 @@ static_library("crdtp") {
 # A small adapter library which only :crdtp may depend on.
 static_library("crdtp_platform") {
   sources = [
-    "crdtp/json_platform.h",
     "crdtp/json_platform.cc",
+    "crdtp/json_platform.h",
   ]
 }
 
@@ -48,6 +49,7 @@ test("crdtp_test") {
     "crdtp/glue_test.cc",
     "crdtp/json_test.cc",
     "crdtp/serializable_test.cc",
+    "crdtp/serializer_traits_test.cc",
     "crdtp/span_test.cc",
     "crdtp/status_test.cc",
   ]
