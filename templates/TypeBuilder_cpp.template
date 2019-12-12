@@ -9,7 +9,7 @@
 #include {{format_include(config.protocol.package, "Protocol")}}
 
 #include "{{config.crdtp.dir}}/cbor.h"
-#include "{{config.crdtp.dir}}/serializer.h"
+#include "{{config.crdtp.dir}}/serializer_traits.h"
 
 {% for namespace in config.protocol.namespace %}
 namespace {{namespace}} {
@@ -107,13 +107,13 @@ void {{type.id}}::AppendSerialized(std::vector<uint8_t>* out) const {
         if ({{property_field}}.isJust()) {
           {{config.crdtp.namespace}}::cbor::EncodeString8(
 	      {{config.crdtp.namespace}}::SpanFrom("{{property.name}}"), out);
-	  {{config.crdtp.namespace}}::Serializer<{{property_type.raw_type}}>::Serialize(
+	  {{config.crdtp.namespace}}::SerializerTraits<{{property_type.raw_type}}>::Serialize(
 	      {{property_field}}.fromJust(), out);
         }
       {% else %}
         {{config.crdtp.namespace}}::cbor::EncodeString8(
 	    {{config.crdtp.namespace}}::SpanFrom("{{property.name}}"), out);
-        {{config.crdtp.namespace}}::Serializer<{{property_type.raw_type}}>::Serialize({{property_field}}, out);
+        {{config.crdtp.namespace}}::SerializerTraits<{{property_type.raw_type}}>::Serialize({{property_field}}, out);
       {% endif %}
     {% endfor %}
 
