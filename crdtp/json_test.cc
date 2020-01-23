@@ -81,6 +81,17 @@ TEST(JsonEncoder, NotAContinuationByte) {
   EXPECT_EQ("\"Hello\"", out);  // "Hello" shows we restarted at 'H'.
 }
 
+TEST(JsonEncoder, EscapesFFFF) {
+  // This tests that the JSON encoder will escape the UTF16 input 0xffff as
+  // \uffff; useful to check this since it's an edge case.
+  std::vector<uint16_t> chars = {'a', 'b', 'c', 0xffff, 'd'};
+  std::string out;
+  Status status;
+  std::unique_ptr<ParserHandler> writer = NewJSONEncoder(&out, &status);
+  writer->HandleString16(span<uint16_t>(chars.data(), chars.size()));
+  EXPECT_EQ("\"abc\\uffffd\"", out);
+}
+
 TEST(JsonEncoder, IncompleteUtf8Sequence) {
   std::string out;
   Status status;
