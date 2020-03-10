@@ -681,8 +681,13 @@ TYPED_TEST_SUITE(ConvertJSONToCBORTest, ContainerTestTypes);
 
 TYPED_TEST(ConvertJSONToCBORTest, RoundTripValidJson) {
   for (const std::string& json_in : {
-           "{\"msg\":\"Hello, world.\",\"lst\":[1,2,3]}", "3.1415", "false",
-           "true", "\"Hello, world.\"", "[1,2,3]", "[]",
+           "{\"msg\":\"Hello, world.\",\"lst\":[1,2,3]}",
+           "3.1415",
+           "false",
+           "true",
+           "\"Hello, world.\"",
+           "[1,2,3]",
+           "[]",
        }) {
     SCOPED_TRACE(json_in);
     TypeParam json(json_in.begin(), json_in.end());

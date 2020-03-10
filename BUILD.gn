@@ -11,9 +11,13 @@ static_library("crdtp") {
   sources = [
     "crdtp/cbor.cc",
     "crdtp/cbor.h",
+    "crdtp/dispatch.cc",
+    "crdtp/dispatch.h",
     "crdtp/error_support.cc",
     "crdtp/error_support.h",
     "crdtp/export.h",
+    "crdtp/find_by_first.h",
+    "crdtp/frontend_channel.h",
     "crdtp/glue.h",
     "crdtp/json.cc",
     "crdtp/json.h",
@@ -21,13 +25,12 @@ static_library("crdtp") {
     "crdtp/serializable.cc",
     "crdtp/serializable.h",
     "crdtp/serializer_traits.h",
+    "crdtp/span.cc",
     "crdtp/span.h",
     "crdtp/status.cc",
     "crdtp/status.h",
   ]
-  deps = [
-    ":crdtp_platform",
-  ]
+  deps = [ ":crdtp_platform" ]
 }
 
 # A small adapter library which only :crdtp may depend on.
@@ -48,7 +51,9 @@ static_library("crdtp_platform") {
 test("crdtp_test") {
   sources = [
     "crdtp/cbor_test.cc",
+    "crdtp/dispatch_test.cc",
     "crdtp/error_support_test.cc",
+    "crdtp/find_by_first_test.cc",
     "crdtp/glue_test.cc",
     "crdtp/json_test.cc",
     "crdtp/serializable_test.cc",
@@ -83,10 +88,6 @@ static_library("crdtp_test_platform") {
 
 # A command line utility for converting between JSON and CBOR.
 executable("transcode") {
-  sources = [
-    "crdtp/transcode.cc",
-  ]
-  deps = [
-    ":crdtp",
-  ]
+  sources = [ "crdtp/transcode.cc" ]
+  deps = [ ":crdtp" ]
 }
