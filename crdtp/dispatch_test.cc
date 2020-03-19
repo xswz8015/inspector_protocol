@@ -161,21 +161,41 @@ TEST(DispatchableTest, MessageWithUnknownProperty) {
       dispatchable.DispatchError().Message());
 }
 
+TEST(DispatchableTest, DuplicateMapKey) {
+  for (const std::string& json :
+       {"{\"id\":42,\"id\":42}", "{\"params\":null,\"params\":null}",
+        "{\"method\":\"foo\",\"method\":\"foo\"}",
+        "{\"sessionId\":\"42\",\"sessionId\":\"42\"}"}) {
+    SCOPED_TRACE("json = " + json);
+    std::vector<uint8_t> cbor;
+    ASSERT_TRUE(json::ConvertJSONToCBOR(SpanFrom(json), &cbor).ok());
+    Dispatchable dispatchable(SpanFrom(cbor));
+    EXPECT_FALSE(dispatchable.ok());
+    EXPECT_EQ(DispatchCode::PARSE_ERROR, dispatchable.DispatchError().Code());
+    EXPECT_THAT(dispatchable.DispatchError().Message(),
+                testing::StartsWith("CBOR: duplicate map key at position "));
+  }
+}
+
 TEST(DispatchableTest, ValidMessageParsesOK_NoParams) {
-  std::vector<uint8_t> cbor;
-  ASSERT_TRUE(json::ConvertJSONToCBOR(
-                  SpanFrom("{\"id\":42,\"method\":\"Foo.executeBar\","
-                           "\"sessionId\":\"f421ssvaz4\"}"),
-                  &cbor)
-                  .ok());
-  Dispatchable dispatchable(SpanFrom(cbor));
-  EXPECT_TRUE(dispatchable.ok());
-  EXPECT_TRUE(dispatchable.HasCallId());
-  EXPECT_EQ(42, dispatchable.CallId());
-  EXPECT_EQ("Foo.executeBar", std::string(dispatchable.Method().begin(),
-                                          dispatchable.Method().end()));
-  EXPECT_EQ("f421ssvaz4", std::string(dispatchable.SessionId().begin(),
-                                      dispatchable.SessionId().end()));
+  for (const std::string& json :
+       {"{\"id\":42,\"method\":\"Foo.executeBar\",\"sessionId\":"
+        "\"f421ssvaz4\"}",
+        "{\"id\":42,\"method\":\"Foo.executeBar\",\"sessionId\":\"f421ssvaz4\","
+        "\"params\":null}"}) {
+    SCOPED_TRACE("json = " + json);
+    std::vector<uint8_t> cbor;
+    ASSERT_TRUE(json::ConvertJSONToCBOR(SpanFrom(json), &cbor).ok());
+    Dispatchable dispatchable(SpanFrom(cbor));
+    EXPECT_TRUE(dispatchable.ok());
+    EXPECT_TRUE(dispatchable.HasCallId());
+    EXPECT_EQ(42, dispatchable.CallId());
+    EXPECT_EQ("Foo.executeBar", std::string(dispatchable.Method().begin(),
+                                            dispatchable.Method().end()));
+    EXPECT_EQ("f421ssvaz4", std::string(dispatchable.SessionId().begin(),
+                                        dispatchable.SessionId().end()));
+    EXPECT_TRUE(dispatchable.Params().empty());
+  }
 }
 
 TEST(DispatchableTest, ValidMessageParsesOK_WithParams) {

@@ -177,31 +177,32 @@ DispatchResponse Dispatchable::DispatchError() const {
 
 bool Dispatchable::MaybeParseProperty(cbor::CBORTokenizer* tokenizer) {
   span<uint8_t> property_name = tokenizer->GetString8();
-  if (SpanEquals(SpanFrom("sessionId"), property_name))
-    return MaybeParseSessionId(tokenizer);
   if (SpanEquals(SpanFrom("id"), property_name))
     return MaybeParseCallId(tokenizer);
   if (SpanEquals(SpanFrom("method"), property_name))
     return MaybeParseMethod(tokenizer);
   if (SpanEquals(SpanFrom("params"), property_name))
     return MaybeParseParams(tokenizer);
+  if (SpanEquals(SpanFrom("sessionId"), property_name))
+    return MaybeParseSessionId(tokenizer);
   status_ =
       Status{Error::MESSAGE_HAS_UNKNOWN_PROPERTY, tokenizer->Status().pos};
   return false;
 }
 
-bool Dispatchable::MaybeParseSessionId(cbor::CBORTokenizer* tokenizer) {
-  if (!session_id_.empty()) {
+bool Dispatchable::MaybeParseCallId(cbor::CBORTokenizer* tokenizer) {
+  if (has_call_id_) {
     status_ = Status{Error::CBOR_DUPLICATE_MAP_KEY, tokenizer->Status().pos};
     return false;
   }
   tokenizer->Next();
-  if (tokenizer->TokenTag() != cbor::CBORTokenTag::STRING8) {
-    status_ = Status{Error::MESSAGE_MAY_HAVE_STRING_SESSION_ID_PROPERTY,
+  if (tokenizer->TokenTag() != cbor::CBORTokenTag::INT32) {
+    status_ = Status{Error::MESSAGE_MUST_HAVE_INTEGER_ID_PROPERTY,
                      tokenizer->Status().pos};
     return false;
   }
-  session_id_ = tokenizer->GetString8();
+  call_id_ = tokenizer->GetInt32();
+  has_call_id_ = true;
   tokenizer->Next();
   return true;
 }
@@ -222,35 +223,39 @@ bool Dispatchable::MaybeParseMethod(cbor::CBORTokenizer* tokenizer) {
   return true;
 }
 
-bool Dispatchable::MaybeParseCallId(cbor::CBORTokenizer* tokenizer) {
-  if (has_call_id_) {
-    status_ = Status{Error::CBOR_DUPLICATE_MAP_KEY, tokenizer->Status().pos};
-    return false;
-  }
-  tokenizer->Next();
-  if (tokenizer->TokenTag() != cbor::CBORTokenTag::INT32) {
-    status_ = Status{Error::MESSAGE_MUST_HAVE_INTEGER_ID_PROPERTY,
-                     tokenizer->Status().pos};
-    return false;
-  }
-  call_id_ = tokenizer->GetInt32();
-  has_call_id_ = true;
-  tokenizer->Next();
-  return true;
-}
-
 bool Dispatchable::MaybeParseParams(cbor::CBORTokenizer* tokenizer) {
-  if (!params_.empty()) {
+  if (params_seen_) {
     status_ = Status{Error::CBOR_DUPLICATE_MAP_KEY, tokenizer->Status().pos};
     return false;
   }
+  params_seen_ = true;
   tokenizer->Next();
+  if (tokenizer->TokenTag() == cbor::CBORTokenTag::NULL_VALUE) {
+    tokenizer->Next();
+    return true;
+  }
   if (tokenizer->TokenTag() != cbor::CBORTokenTag::ENVELOPE) {
     status_ = Status{Error::MESSAGE_MAY_HAVE_OBJECT_PARAMS_PROPERTY,
                      tokenizer->Status().pos};
     return false;
   }
   params_ = tokenizer->GetEnvelope();
+  tokenizer->Next();
+  return true;
+}
+
+bool Dispatchable::MaybeParseSessionId(cbor::CBORTokenizer* tokenizer) {
+  if (!session_id_.empty()) {
+    status_ = Status{Error::CBOR_DUPLICATE_MAP_KEY, tokenizer->Status().pos};
+    return false;
+  }
+  tokenizer->Next();
+  if (tokenizer->TokenTag() != cbor::CBORTokenTag::STRING8) {
+    status_ = Status{Error::MESSAGE_MAY_HAVE_STRING_SESSION_ID_PROPERTY,
+                     tokenizer->Status().pos};
+    return false;
+  }
+  session_id_ = tokenizer->GetString8();
   tokenizer->Next();
   return true;
 }

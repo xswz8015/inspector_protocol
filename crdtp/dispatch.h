@@ -123,10 +123,10 @@ class CRDTP_EXPORT Dispatchable {
 
  private:
   bool MaybeParseProperty(cbor::CBORTokenizer* tokenizer);
-  bool MaybeParseSessionId(cbor::CBORTokenizer* tokenizer);
-  bool MaybeParseMethod(cbor::CBORTokenizer* tokenizer);
   bool MaybeParseCallId(cbor::CBORTokenizer* tokenizer);
+  bool MaybeParseMethod(cbor::CBORTokenizer* tokenizer);
   bool MaybeParseParams(cbor::CBORTokenizer* tokenizer);
+  bool MaybeParseSessionId(cbor::CBORTokenizer* tokenizer);
 
   span<uint8_t> serialized_;
 
@@ -135,6 +135,7 @@ class CRDTP_EXPORT Dispatchable {
   bool has_call_id_ = false;
   int32_t call_id_;
   span<uint8_t> method_;
+  bool params_seen_ = false;
   span<uint8_t> params_;
   span<uint8_t> session_id_;
 };
