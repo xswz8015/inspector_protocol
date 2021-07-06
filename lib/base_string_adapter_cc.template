@@ -33,26 +33,14 @@ std::unique_ptr<protocol::Value> toProtocolValue(
     return nullptr;
   if (value->is_none())
     return protocol::Value::null();
-  if (value->is_bool()) {
-    bool inner;
-    value->GetAsBoolean(&inner);
-    return protocol::FundamentalValue::create(inner);
-  }
-  if (value->is_int()) {
-    int inner;
-    value->GetAsInteger(&inner);
-    return protocol::FundamentalValue::create(inner);
-  }
-  if (value->is_double()) {
-    double inner;
-    value->GetAsDouble(&inner);
-    return protocol::FundamentalValue::create(inner);
-  }
-  if (value->is_string()) {
-    std::string inner;
-    value->GetAsString(&inner);
-    return protocol::StringValue::create(inner);
-  }
+  if (value->is_bool())
+    return protocol::FundamentalValue::create(value->GetBool());
+  if (value->is_int())
+    return protocol::FundamentalValue::create(value->GetInt());
+  if (value->is_double())
+    return protocol::FundamentalValue::create(value->GetDouble());
+  if (value->is_string())
+    return protocol::StringValue::create(value->GetString());
   if (value->is_list()) {
     const base::ListValue* list = nullptr;
     value->GetAsList(&list);
