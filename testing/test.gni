@@ -5,9 +5,9 @@
 set_defaults("test") {
   # These configs are duplicated from BUILDCONFIG.gn.
   configs = [
-    "//third_party/mini_chromium/mini_chromium/build:default",
-    "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
-    "//third_party/mini_chromium/mini_chromium/build:executable",
+    "//third_party/mini_chromium/mini_chromium/build/config:default",
+    "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
+    "//third_party/mini_chromium/mini_chromium/build/config:executable",
   ]
 }
 

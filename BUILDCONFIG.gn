@@ -20,8 +20,7 @@ if (current_os == "") {
 
 # This configures Clang as the C++ compiler. mini_chromium is an
 # external dependency we pull in via the DEPS file / gclient sync / fetch.
-set_default_toolchain(
-    "//third_party/mini_chromium/mini_chromium/build:gcc_like_toolchain")
+set_default_toolchain("//third_party/mini_chromium/mini_chromium/build/config:gcc_like_toolchain")
 
 declare_args() {
   # When true, enables the debug configuration, with additional run-time checks
@@ -31,13 +30,13 @@ declare_args() {
 }
 
 _default_configs = [
-  "//third_party/mini_chromium/mini_chromium/build:default",
-  "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
+  "//third_party/mini_chromium/mini_chromium/build/config:default",
+  "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
 ]
 
 _default_executable_configs =
     _default_configs +
-    [ "//third_party/mini_chromium/mini_chromium/build:executable" ]
+    [ "//third_party/mini_chromium/mini_chromium/build/config:executable" ]
 
 set_defaults("source_set") {
   configs = _default_configs
@@ -59,6 +58,3 @@ set_defaults("shared_library") {
   configs = _default_configs
 }
 
-set_defaults("test") {
-  configs = _default_executable_configs
-}

@@ -61,7 +61,7 @@ static_library("gtest") {
   sources -= [ "gtest/googletest/src/gtest-all.cc" ]
   public_configs = [ ":gtest_public_config" ]
   configs -= [
-    "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
+    "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
   ]
   configs += [ ":gtest_private_config" ]
 }
@@ -100,7 +100,7 @@ test("gtest_all_test") {
     "gtest/googletest/test/production.h",
   ]
   configs -= [
-    "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
+    "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
   ]
   configs += [ ":gtest_private_config" ]
   deps = [
@@ -146,7 +146,7 @@ test("gtest_param_test") {
     "gtest/googletest/test/googletest-param-test-test.h",
   ]
   configs -= [
-    "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
+    "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
   ]
   configs += [ ":gtest_private_config" ]
   deps = [
@@ -263,7 +263,7 @@ static_library("gmock") {
   sources -= [ "gtest/googlemock/src/gmock-all.cc" ]
   public_configs = [ ":gmock_public_config" ]
   configs -= [
-    "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
+    "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
   ]
   configs += [ ":gmock_private_config" ]
   deps = [
@@ -331,7 +331,7 @@ test("gmock_stress_test") {
     "gtest/googlemock/test/gmock_stress_test.cc",
   ]
   configs -= [
-    "//third_party/mini_chromium/mini_chromium/build:Wexit_time_destructors",
+    "//third_party/mini_chromium/mini_chromium/build/config:Wexit_time_destructors",
   ]
   configs += [ ":gmock_private_config" ]
   deps = [
