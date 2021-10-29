@@ -57,8 +57,8 @@ test("crdtp_test") {
     "crdtp/dispatch_test.cc",
     "crdtp/error_support_test.cc",
     "crdtp/find_by_first_test.cc",
-    "crdtp/maybe_test.cc",
     "crdtp/json_test.cc",
+    "crdtp/maybe_test.cc",
     "crdtp/protocol_core_test.cc",
     "crdtp/serializable_test.cc",
     "crdtp/serializer_traits_test.cc",
@@ -66,6 +66,8 @@ test("crdtp_test") {
     "crdtp/status_test.cc",
     "crdtp/status_test_support.cc",
     "crdtp/status_test_support.h",
+    "crdtp/test_string_traits.cc",
+    "crdtp/test_string_traits.h",
   ]
   include_dirs = [ "." ]
   deps = [

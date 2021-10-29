@@ -696,7 +696,7 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
           // against the signed max, so that the allowable values are
           // 0, 1, 2, ... 2^31 - 1.
           if (!bytes_read ||
-                static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) <
+              static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) <
                   static_cast<uint64_t>(token_start_internal_value_)) {
             SetError(Error::CBOR_INVALID_INT32);
             return;
@@ -715,7 +715,7 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
           // that range (2^31-1 is also known as
           // std::numeric_limits<int32_t>::max()).
           if (!bytes_read ||
-                static_cast<uint64_t>(token_start_internal_value_) >
+              static_cast<uint64_t>(token_start_internal_value_) >
                   static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
             SetError(Error::CBOR_INVALID_INT32);
             return;

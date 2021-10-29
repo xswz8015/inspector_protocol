@@ -124,7 +124,10 @@ TEST(JsonEncoder, Passes0x7FString8) {
   Status status;
   std::unique_ptr<ParserHandler> writer = NewJSONEncoder(&out, &status);
   writer->HandleString8(span<uint8_t>(chars.data(), chars.size()));
-  EXPECT_EQ("\"a\x7f" "b\"", out);
+  EXPECT_EQ(
+      "\"a\x7f"
+      "b\"",
+      out);
 }
 
 TEST(JsonEncoder, Passes0x7FString16) {
@@ -133,7 +136,10 @@ TEST(JsonEncoder, Passes0x7FString16) {
   Status status;
   std::unique_ptr<ParserHandler> writer = NewJSONEncoder(&out, &status);
   writer->HandleString16(span<uint16_t>(chars16.data(), chars16.size()));
-  EXPECT_EQ("\"a\x7f" "b\"", out);
+  EXPECT_EQ(
+      "\"a\x7f"
+      "b\"",
+      out);
 }
 
 TEST(JsonEncoder, IncompleteUtf8Sequence) {

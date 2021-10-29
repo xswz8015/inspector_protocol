@@ -17,8 +17,8 @@
 namespace crdtp {
 std::string UTF16ToUTF8(span<uint16_t> in) {
   std::string out;
-  bool success = base::UTF16ToUTF8(
-      reinterpret_cast<const char16_t*>(in.data()), in.size(), &out);
+  bool success = base::UTF16ToUTF8(reinterpret_cast<const char16_t*>(in.data()),
+                                   in.size(), &out);
   CHECK(success);
   return out;
 }
