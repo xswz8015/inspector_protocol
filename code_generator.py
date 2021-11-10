@@ -3,6 +3,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import os
 import os.path
 import sys
 import argparse
@@ -694,6 +695,11 @@ def main():
     sys.exit()
 
   for file_name, content in outputs.items():
+    # Remove output file first to account for potential case changes.
+    try:
+      os.remove(file_name)
+    except OSError:
+      pass
     out_file = open(file_name, "w")
     out_file.write(content)
     out_file.close()
